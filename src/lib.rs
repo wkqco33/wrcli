@@ -33,6 +33,7 @@ pub mod command;
 pub mod config;
 pub mod error;
 pub mod flag;
+pub mod style;
 
 // Flatten the most-used types to crate root for ergonomics.
 pub use command::context::CommandContext;
