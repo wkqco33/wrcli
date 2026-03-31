@@ -1,5 +1,30 @@
 use crate::command::Command;
 use crate::flag::{Flag, FlagSet, FlagValue};
+use crate::style::{Color, Style, stdout_is_styled};
+
+/// Collects the set of styles used when rendering help text.
+struct HelpStyles {
+    styled: bool,
+    section: Style,
+    cmd_name: Style,
+    flag_name: Style,
+    meta: Style,
+    required: Style,
+}
+
+impl HelpStyles {
+    fn new() -> Self {
+        let styled = stdout_is_styled();
+        HelpStyles {
+            styled,
+            section:   Style::new().bold().fg(Color::Yellow),
+            cmd_name:  Style::new().bold().fg(Color::Green),
+            flag_name: Style::new().fg(Color::Cyan),
+            meta:      Style::new().dim(),
+            required:  Style::new().fg(Color::Red),
+        }
+    }
+}
 
 pub fn print_help(
     name: &str,
@@ -11,9 +36,10 @@ pub fn print_help(
     command_path: &[String],
 ) {
     let path = command_path.join(" ");
+    let s = HelpStyles::new();
 
     // ── Usage ─────────────────────────────────────────────────────────────────
-    println!("Usage:");
+    println!("{}", s.section.apply("Usage:", s.styled));
     if !subcommands.is_empty() {
         println!("  {} [command]", path);
     }
@@ -23,7 +49,6 @@ pub fn print_help(
     let desc = if !long.is_empty() { long } else { short };
     if !desc.is_empty() {
         println!();
-        // Word-wrap at 80 cols
         for line in word_wrap(desc, 80) {
             println!("{}", line);
         }
@@ -32,13 +57,13 @@ pub fn print_help(
     // ── Version ───────────────────────────────────────────────────────────────
     if let Some(v) = version {
         println!();
-        println!("Version: {}", v);
+        println!("Version: {}", s.meta.apply(v, s.styled));
     }
 
     // ── Subcommands ───────────────────────────────────────────────────────────
     if !subcommands.is_empty() {
         println!();
-        println!("Available Commands:");
+        println!("{}", s.section.apply("Available Commands:", s.styled));
         let col = subcommands.iter().map(|c| c.name.len()).max().unwrap_or(0);
         for cmd in subcommands {
             let aliases = if cmd.aliases.is_empty() {
@@ -48,9 +73,9 @@ pub fn print_help(
             };
             println!(
                 "  {:<width$}   {}{}",
-                cmd.name,
+                s.cmd_name.apply(&cmd.name, s.styled),
                 cmd.short,
-                aliases,
+                s.meta.apply(&aliases, s.styled),
                 width = col
             );
         }
@@ -58,8 +83,6 @@ pub fn print_help(
 
     // ── Flags ─────────────────────────────────────────────────────────────────
     let implicit_has_version = version.is_some();
-
-    // Measure column widths without collecting into an intermediate Vec.
     let has_any_short = flags.flags_iter().any(|f| f.short.is_some()) || implicit_has_version;
 
     let flag_col_width = {
@@ -75,27 +98,20 @@ pub fn print_help(
     let has_user_flags = flags.flags_iter().next().is_some();
     if has_user_flags {
         println!();
-        println!("Flags:");
+        println!("{}", s.section.apply("Flags:", s.styled));
         for flag in flags.flags_iter() {
-            print_flag_row(flag, has_any_short, flag_col_width);
+            print_flag_row(flag, has_any_short, flag_col_width, &s);
         }
     }
 
-    // Implicit flags
+    // Implicit flags (-h / -V)
     println!();
     if !has_user_flags {
-        println!("Flags:");
+        println!("{}", s.section.apply("Flags:", s.styled));
     }
-    print_implicit_flag('h', "help", "", "Show this help message", has_any_short, flag_col_width);
+    print_implicit_flag('h', "help",    "", "Show this help message", has_any_short, flag_col_width, &s);
     if implicit_has_version {
-        print_implicit_flag(
-            'V',
-            "version",
-            "",
-            "Show version",
-            has_any_short,
-            flag_col_width,
-        );
+        print_implicit_flag('V', "version", "", "Show version", has_any_short, flag_col_width, &s);
     }
 
     // ── Footer ────────────────────────────────────────────────────────────────
@@ -134,8 +150,7 @@ fn type_hint_len(val: &FlagValue) -> usize {
     }
 }
 
-fn print_flag_row(flag: &Flag, has_any_short: bool, col_width: usize) {
-    // Build lhs into a reusable buffer to avoid multiple intermediate String allocations.
+fn print_flag_row(flag: &Flag, has_any_short: bool, col_width: usize, s: &HelpStyles) {
     let mut lhs = String::with_capacity(col_width + 4);
     if has_any_short {
         match flag.short {
@@ -151,8 +166,13 @@ fn print_flag_row(flag: &Flag, has_any_short: bool, col_width: usize) {
         lhs.push('>');
     }
 
-    let rhs = build_flag_rhs(flag);
-    println!("  {:<width$}   {}", lhs, rhs, width = col_width);
+    let rhs = build_flag_rhs(flag, s);
+    println!(
+        "  {:<width$}   {}",
+        s.flag_name.apply(&lhs, s.styled),
+        rhs,
+        width = col_width,
+    );
 }
 
 fn print_implicit_flag(
@@ -162,6 +182,7 @@ fn print_implicit_flag(
     usage: &str,
     has_any_short: bool,
     col_width: usize,
+    s: &HelpStyles,
 ) {
     let mut lhs = String::with_capacity(col_width + 4);
     if has_any_short {
@@ -170,11 +191,15 @@ fn print_implicit_flag(
     lhs.push_str("--");
     lhs.push_str(name);
     lhs.push_str(type_hint);
-    println!("  {:<width$}   {}", lhs, usage, width = col_width);
+    println!(
+        "  {:<width$}   {}",
+        s.flag_name.apply(&lhs, s.styled),
+        usage,
+        width = col_width,
+    );
 }
 
-fn build_flag_rhs(flag: &Flag) -> String {
-    // Pre-allocate a single buffer for the entire rhs string.
+fn build_flag_rhs(flag: &Flag, s: &HelpStyles) -> String {
     let mut buf = String::with_capacity(flag.usage.len() + 32);
     buf.push_str(&flag.usage);
 
@@ -190,7 +215,7 @@ fn build_flag_rhs(flag: &Flag) -> String {
         buf.push_str(" (default: ");
         match &flag.default {
             FlagValue::Bool(true)   => buf.push_str("true"),
-            FlagValue::String(s)    => { buf.push('"'); buf.push_str(s); buf.push('"'); }
+            FlagValue::String(v)    => { buf.push('"'); buf.push_str(v); buf.push('"'); }
             FlagValue::Int(i)       => buf.push_str(&i.to_string()),
             FlagValue::Float(f)     => buf.push_str(&f.to_string()),
             _ => {}
@@ -198,7 +223,7 @@ fn build_flag_rhs(flag: &Flag) -> String {
         buf.push(')');
     }
     if flag.required {
-        buf.push_str(" [required]");
+        buf.push_str(&s.required.apply(" [required]", s.styled));
     }
     buf
 }
