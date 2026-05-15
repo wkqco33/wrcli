@@ -20,10 +20,11 @@ impl FlagSet {
 
     /// 플래그 추가. 같은 이름이 있으면 교체.
     pub fn add(&mut self, flag: Flag) {
+        let name = flag.name.clone();
         if let Some(c) = flag.short {
-            self.short_map.insert(c, flag.name.clone());
+            self.short_map.insert(c, name.clone());
         }
-        self.flags.insert(flag.name.clone(), flag);
+        self.flags.insert(name, flag);
     }
 
     /// 이름이 없는 경우에만 추가 (persistent 플래그 주입용).

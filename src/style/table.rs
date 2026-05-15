@@ -86,6 +86,8 @@ impl Table {
     ///
     /// `styled = true`이면 ANSI 이스케이프 시퀀스 포함.
     pub fn render(&self, styled: bool) -> String {
+        use std::fmt::Write as _;
+
         let col_count = self
             .headers
             .len()
@@ -106,35 +108,57 @@ impl Table {
             }
         }
 
+        // border 문자열을 한 번만 계산 (separator는 행마다 동일)
+        let (top_line, header_sep_line, row_sep_line, bottom_line, plain_sep_line) = if self.border
+        {
+            let mut top = String::from("┌");
+            let mut hsep = String::from("├");
+            let mut rsep = String::from("├");
+            let mut bot = String::from("└");
+            for (i, &w) in widths.iter().enumerate() {
+                if i > 0 {
+                    top.push('┬');
+                    hsep.push('┼');
+                    rsep.push('┼');
+                    bot.push('┴');
+                }
+                let dashes: String = std::iter::repeat('─').take(w + 2).collect();
+                top.push_str(&dashes);
+                hsep.push_str(&dashes);
+                rsep.push_str(&dashes);
+                bot.push_str(&dashes);
+            }
+            top.push_str("┐\n");
+            hsep.push_str("┤\n");
+            rsep.push_str("┤\n");
+            bot.push_str("┘\n");
+            (top, hsep, rsep, bot, String::new())
+        } else {
+            let plain: String = widths
+                .iter()
+                .enumerate()
+                .fold(String::new(), |mut s, (i, &w)| {
+                    if i > 0 { s.push_str("  "); }
+                    s.extend(std::iter::repeat('-').take(w));
+                    s
+                });
+            (String::new(), String::new(), String::new(), String::new(), plain + "\n")
+        };
+
         let mut buf = String::new();
 
         if self.border {
-            let top: String = widths
-                .iter()
-                .map(|w| "─".repeat(w + 2))
-                .collect::<Vec<_>>()
-                .join("┬");
-            buf.push_str(&format!("┌{}┐\n", top));
+            buf.push_str(&top_line);
         }
 
         if !self.headers.is_empty() {
             let row_str = self.render_row(&self.headers, &widths, &self.header_style, styled);
             if self.border {
-                buf.push_str(&format!("│{}│\n", row_str));
-                let sep: String = widths
-                    .iter()
-                    .map(|w| "─".repeat(w + 2))
-                    .collect::<Vec<_>>()
-                    .join("┼");
-                buf.push_str(&format!("├{}┤\n", sep));
+                write!(buf, "│{}│\n", row_str).unwrap();
+                buf.push_str(&header_sep_line);
             } else {
-                buf.push_str(&format!("{}\n", row_str));
-                let plain_sep: String = widths
-                    .iter()
-                    .map(|w| "-".repeat(*w))
-                    .collect::<Vec<_>>()
-                    .join("  ");
-                buf.push_str(&format!("{}\n", plain_sep));
+                write!(buf, "{}\n", row_str).unwrap();
+                buf.push_str(&plain_sep_line);
             }
         }
 
@@ -142,27 +166,17 @@ impl Table {
         for (idx, row) in self.rows.iter().enumerate() {
             let row_str = self.render_row(row, &widths, &plain_style, styled);
             if self.border {
-                buf.push_str(&format!("│{}│\n", row_str));
+                write!(buf, "│{}│\n", row_str).unwrap();
                 if idx < self.rows.len() - 1 {
-                    let sep: String = widths
-                        .iter()
-                        .map(|w| "─".repeat(w + 2))
-                        .collect::<Vec<_>>()
-                        .join("┼");
-                    buf.push_str(&format!("├{}┤\n", sep));
+                    buf.push_str(&row_sep_line);
                 }
             } else {
-                buf.push_str(&format!("{}\n", row_str));
+                write!(buf, "{}\n", row_str).unwrap();
             }
         }
 
         if self.border {
-            let bottom: String = widths
-                .iter()
-                .map(|w| "─".repeat(w + 2))
-                .collect::<Vec<_>>()
-                .join("┴");
-            buf.push_str(&format!("└{}┘\n", bottom));
+            buf.push_str(&bottom_line);
         }
 
         buf

@@ -34,8 +34,8 @@ impl Command {
             pre_chain.push(f);
         }
         if let Some(f) = self.persistent_post_run.take() {
-            // post-run은 리프→루트 순서이므로 앞에 삽입
-            post_chain.insert(0, f);
+            // push 후 역방향 순회로 리프→루트 순서 유지 (insert(0) 대비 O(1))
+            post_chain.push(f);
         }
 
         // 서브커맨드 라우팅을 먼저 시도해야 `app serve --help`가 serve의 help를 출력함.
@@ -63,8 +63,20 @@ impl Command {
             return child.dispatch(args, config, pre_chain, post_chain, command_path);
         }
 
-        // 서브커맨드 없음 — 이 커맨드의 메타 플래그 처리
-        if args.iter().any(|a| a == "--help" || a == "-h") {
+        // 서브커맨드 없음 — 단일 패스로 메타 플래그 + unknown 서브커맨드 감지
+        let mut found_help = false;
+        let mut found_version = false;
+        let mut first_positional: Option<&str> = None;
+        for a in &args {
+            match a.as_str() {
+                "--help" | "-h" => { found_help = true; break; }
+                "--version" | "-V" => { found_version = true; break; }
+                s if !s.starts_with('-') => { first_positional = Some(s); break; }
+                _ => {}
+            }
+        }
+
+        if found_help {
             help::print_help(
                 &self.name,
                 &self.short,
@@ -77,16 +89,16 @@ impl Command {
             return Ok(());
         }
 
-        if self.version.is_some() && args.iter().any(|a| a == "--version" || a == "-V") {
+        if found_version && self.version.is_some() {
             println!("{} {}", self.name, self.version.as_deref().unwrap_or(""));
             return Ok(());
         }
 
         // 등록된 서브커맨드가 있는데 인식 불가 토큰이 오면 명확한 에러 반환
         if !self.subcommands.is_empty() {
-            if let Some(unknown) = args.iter().find(|a| !a.starts_with('-')) {
+            if let Some(unknown) = first_positional {
                 return Err(WrCliError::UnknownSubcommand {
-                    name: unknown.clone(),
+                    name: unknown.to_owned(),
                     parent: self.name.clone(),
                 });
             }
@@ -142,7 +154,7 @@ impl Command {
         if let Some(ref f) = self.post_run {
             f(&ctx);
         }
-        for f in post_chain.iter() {
+        for f in post_chain.iter().rev() {
             f(&ctx);
         }
 

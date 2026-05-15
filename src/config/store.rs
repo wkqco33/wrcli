@@ -52,6 +52,7 @@ pub struct Config {
     config_paths: Vec<PathBuf>,
 
     env_prefix: Option<String>,
+    env_prefix_upper: Option<String>,
     auto_env: bool,
     explicit_env_bindings: HashMap<String, String>,
 }
@@ -139,6 +140,7 @@ impl Config {
 
     /// 자동 환경 변수 조회에 접두사 추가 (예: `"MYAPP"`).
     pub fn set_env_prefix(mut self, prefix: &str) -> Self {
+        self.env_prefix_upper = Some(prefix.to_uppercase());
         self.env_prefix = Some(prefix.to_owned());
         self
     }
@@ -237,9 +239,12 @@ impl Config {
     }
 
     fn key_to_env_var(&self, key: &str) -> String {
-        let upper = key.replace('.', "_").replace('-', "_").to_uppercase();
-        match &self.env_prefix {
-            Some(prefix) => format!("{}_{}", prefix.to_uppercase(), upper),
+        let upper: String = key
+            .chars()
+            .map(|c| if c == '.' || c == '-' { '_' } else { c.to_ascii_uppercase() })
+            .collect();
+        match &self.env_prefix_upper {
+            Some(prefix) => format!("{}_{}", prefix, upper),
             None => upper,
         }
     }
