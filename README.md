@@ -63,7 +63,7 @@ fn main() {
 }
 ```
 
-```
+```bash
 $ myapp greet Alice Bob
 Hello, Alice!
 Hello, Bob!

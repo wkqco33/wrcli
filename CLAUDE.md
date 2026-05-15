@@ -6,7 +6,7 @@ Go의 [cobra](https://github.com/spf13/cobra) / [viper](https://github.com/spf13
 
 ## 프로젝트 구조
 
-```
+```bash
 src/
   lib.rs              # 크레이트 루트, public re-export
   command/
@@ -36,7 +36,7 @@ examples/
 ## 핵심 타입
 
 | 타입 | 위치 | 역할 |
-|------|------|------|
+| ---- | --- | --- |
 | `Command` | `command/mod.rs` | 명령 트리 노드, 플루언트 빌더 |
 | `CommandContext<'a>` | `command/context.rs` | on_run 콜백에 전달되는 컨텍스트 |
 | `Flag` / `FlagSet` / `FlagValue` | `flag/mod.rs` | 플래그 정의·파싱·조회 |
@@ -66,7 +66,7 @@ examples/
 
 ## 라이프사이클 훅 실행 순서
 
-```
+```bash
 root:persistent_pre_run
   └─ sub:persistent_pre_run
        ├─ sub:pre_run
@@ -83,7 +83,7 @@ root:persistent_post_run
 ## Cargo features
 
 | Feature | 기본 | 설명 |
-|---------|------|------|
+| ------ | --- | --- |
 | `toml-config` | ✔ | TOML 설정 파일 파싱 |
 | `json-config` | ✔ | JSON 설정 파일 파싱 |
 | `yaml-config` | — | YAML 설정 파일 파싱 (`serde_yml`) |
@@ -100,7 +100,8 @@ cargo run --example styled   # 스타일 데모
 ```
 
 `yaml-config` 기능 포함 테스트:
-```sh
+
+```bash
 cargo test --features yaml-config
 ```
 
@@ -119,7 +120,7 @@ cargo test --features yaml-config
 ## 주요 의존성
 
 | 크레이트 | 용도 |
-|----------|------|
+| ------- | --- |
 | `indexmap` | 플래그 삽입 순서 보존 (help 출력용) |
 | `shellexpand` | config path에서 `~` / `$VAR` 확장 |
 | `toml` | TOML 파싱 (optional) |

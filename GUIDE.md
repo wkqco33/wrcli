@@ -98,7 +98,7 @@ Command::new("app")
     .unwrap();
 ```
 
-```
+```bash
 $ app --version
 app 2.3.1
 ```
@@ -142,7 +142,7 @@ Flag::new("output", FlagValue::String(String::new()), "output file").short('o')
 
 지원하는 파싱 문법:
 
-```
+```bash
 --output result.txt   # 롱 플래그, 공백 구분
 --output=result.txt   # 롱 플래그, = 구분
 -o result.txt         # 숏 플래그
@@ -194,7 +194,7 @@ Command::new("app")
     .unwrap();
 ```
 
-```
+```bash
 $ app --tag frontend --tag prod --tag v2
 tag: frontend
 tag: prod
@@ -253,7 +253,7 @@ fn only_existing_files() -> ArgValidator {
 
 ## 라이프사이클 훅
 
-```
+```bash
 persistent_pre_run  (루트 → 리프 순서로 체인)
 pre_run             (매칭된 리프 커맨드만)
 run / run_e         (매칭된 리프 커맨드만)
@@ -344,7 +344,7 @@ config.bind_env("token", "API_TOKEN");
 
 ### 우선순위 규칙
 
-```
+```text
 1. 기본값        (set_default)               ← 가장 낮음
 2. 설정 파일     (read_in_config)
 3. 환경 변수     (automatic_env / bind_env)
