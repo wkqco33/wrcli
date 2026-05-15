@@ -17,11 +17,11 @@ impl HelpStyles {
         let styled = stdout_is_styled();
         HelpStyles {
             styled,
-            section:   Style::new().bold().fg(Color::Yellow),
-            cmd_name:  Style::new().bold().fg(Color::Green),
+            section: Style::new().bold().fg(Color::Yellow),
+            cmd_name: Style::new().bold().fg(Color::Green),
             flag_name: Style::new().fg(Color::Cyan),
-            meta:      Style::new().dim(),
-            required:  Style::new().fg(Color::Red),
+            meta: Style::new().dim(),
+            required: Style::new().fg(Color::Red),
         }
     }
 }
@@ -86,12 +86,13 @@ pub fn print_help(
     let has_any_short = flags.flags_iter().any(|f| f.short.is_some()) || implicit_has_version;
 
     let flag_col_width = {
-        let user_max = flags.flags_iter()
+        let user_max = flags
+            .flags_iter()
             .map(|f| flag_lhs_len(f, has_any_short))
             .max()
             .unwrap_or(0);
         let help_lhs = short_prefix_len(true, has_any_short) + "--help".len();
-        let ver_lhs  = short_prefix_len(implicit_has_version, has_any_short) + "--version".len();
+        let ver_lhs = short_prefix_len(implicit_has_version, has_any_short) + "--version".len();
         user_max.max(help_lhs).max(ver_lhs)
     };
 
@@ -109,9 +110,25 @@ pub fn print_help(
     if !has_user_flags {
         println!("{}", s.section.apply("Flags:", s.styled));
     }
-    print_implicit_flag('h', "help",    "", "Show this help message", has_any_short, flag_col_width, &s);
+    print_implicit_flag(
+        'h',
+        "help",
+        "",
+        "Show this help message",
+        has_any_short,
+        flag_col_width,
+        &s,
+    );
     if implicit_has_version {
-        print_implicit_flag('V', "version", "", "Show version", has_any_short, flag_col_width, &s);
+        print_implicit_flag(
+            'V',
+            "version",
+            "",
+            "Show version",
+            has_any_short,
+            flag_col_width,
+            &s,
+        );
     }
 
     // ── Footer ────────────────────────────────────────────────────────────────
@@ -154,8 +171,12 @@ fn print_flag_row(flag: &Flag, has_any_short: bool, col_width: usize, s: &HelpSt
     let mut lhs = String::with_capacity(col_width + 4);
     if has_any_short {
         match flag.short {
-            Some(c) => { lhs.push('-'); lhs.push(c); lhs.push_str(", "); }
-            None    => lhs.push_str("    "),
+            Some(c) => {
+                lhs.push('-');
+                lhs.push(c);
+                lhs.push_str(", ");
+            }
+            None => lhs.push_str("    "),
         }
     }
     lhs.push_str("--");
@@ -186,7 +207,9 @@ fn print_implicit_flag(
 ) {
     let mut lhs = String::with_capacity(col_width + 4);
     if has_any_short {
-        lhs.push('-'); lhs.push(short); lhs.push_str(", ");
+        lhs.push('-');
+        lhs.push(short);
+        lhs.push_str(", ");
     }
     lhs.push_str("--");
     lhs.push_str(name);
@@ -214,10 +237,14 @@ fn build_flag_rhs(flag: &Flag, s: &HelpStyles) -> String {
     if has_default {
         buf.push_str(" (default: ");
         match &flag.default {
-            FlagValue::Bool(true)   => buf.push_str("true"),
-            FlagValue::String(v)    => { buf.push('"'); buf.push_str(v); buf.push('"'); }
-            FlagValue::Int(i)       => buf.push_str(&i.to_string()),
-            FlagValue::Float(f)     => buf.push_str(&f.to_string()),
+            FlagValue::Bool(true) => buf.push_str("true"),
+            FlagValue::String(v) => {
+                buf.push('"');
+                buf.push_str(v);
+                buf.push('"');
+            }
+            FlagValue::Int(i) => buf.push_str(&i.to_string()),
+            FlagValue::Float(f) => buf.push_str(&f.to_string()),
             _ => {}
         }
         buf.push(')');

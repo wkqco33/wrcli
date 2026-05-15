@@ -71,11 +71,7 @@ fn echo_multiple_args() {
 
 #[test]
 fn echo_no_args_prints_empty_line() {
-    app()
-        .args(["echo"])
-        .assert()
-        .success()
-        .stdout("\n");
+    app().args(["echo"]).assert().success().stdout("\n");
 }
 
 // ── fail subcommand ──────────────────────────────────────────────────────────

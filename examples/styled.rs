@@ -9,6 +9,7 @@ use wrcli::style::{
 };
 
 fn main() {
+    env_logger::init();
     // ── Section separator ──────────────────────────────────────────────────────
     Rule::new()
         .title("wrcli Rich Styling Demo")

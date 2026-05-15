@@ -36,8 +36,8 @@ pub mod flag;
 pub mod style;
 
 // Flatten the most-used types to crate root for ergonomics.
-pub use command::context::CommandContext;
 pub use command::Command;
+pub use command::context::CommandContext;
 pub use config::{Config, ConfigValue};
 pub use error::{Result, WrCliError};
 pub use flag::{Flag, FlagSet, FlagValue};
@@ -45,8 +45,8 @@ pub use flag::{Flag, FlagSet, FlagValue};
 /// Positional argument validators. Import with `use wrcli::args::*`.
 pub mod args {
     pub use crate::command::args::{
-        arbitrary_args, exact_args, maximum_n_args, minimum_n_args, no_args, range_args,
-        valid_args, ArgValidator,
+        ArgValidator, arbitrary_args, exact_args, maximum_n_args, minimum_n_args, no_args,
+        range_args, valid_args,
     };
 }
 
@@ -82,8 +82,7 @@ mod tests {
         Command::new("app")
             .flag(Flag::new("name", FlagValue::String(String::new()), "your name").short('n'))
             .on_run(move |ctx| {
-                *result2.lock().unwrap() =
-                    ctx.flags.get_string("name").unwrap_or("").to_owned();
+                *result2.lock().unwrap() = ctx.flags.get_string("name").unwrap_or("").to_owned();
             })
             .execute_with(args("--name Alice"))
             .unwrap();
@@ -145,12 +144,9 @@ mod tests {
         let result2 = result.clone();
 
         Command::new("app")
-            .subcommand(
-                Command::new("sub")
-                    .on_run(move |ctx| {
-                        *result2.lock().unwrap() = ctx.command_name().to_owned();
-                    })
-            )
+            .subcommand(Command::new("sub").on_run(move |ctx| {
+                *result2.lock().unwrap() = ctx.command_name().to_owned();
+            }))
             .execute_with(args("sub"))
             .unwrap();
 
@@ -164,12 +160,9 @@ mod tests {
 
         Command::new("app")
             .persistent_flag(Flag::new("debug", FlagValue::Bool(false), "debug").short('d'))
-            .subcommand(
-                Command::new("sub")
-                    .on_run(move |ctx| {
-                        *result2.lock().unwrap() = ctx.flags.get_bool("debug").unwrap_or(false);
-                    })
-            )
+            .subcommand(Command::new("sub").on_run(move |ctx| {
+                *result2.lock().unwrap() = ctx.flags.get_bool("debug").unwrap_or(false);
+            }))
             .execute_with(args("sub --debug"))
             .unwrap();
 
@@ -197,10 +190,13 @@ mod tests {
         let result2 = result.clone();
 
         Command::new("app")
-            .flag(Flag::new("output", FlagValue::String(String::new()), "output file"))
+            .flag(Flag::new(
+                "output",
+                FlagValue::String(String::new()),
+                "output file",
+            ))
             .on_run(move |ctx| {
-                *result2.lock().unwrap() =
-                    ctx.flags.get_string("output").unwrap_or("").to_owned();
+                *result2.lock().unwrap() = ctx.flags.get_string("output").unwrap_or("").to_owned();
             })
             .execute_with(args("--output=result.txt"))
             .unwrap();
@@ -238,9 +234,7 @@ mod tests {
     #[test]
     fn test_run_e_error_propagation() {
         let result = Command::new("app")
-            .on_run_e(|_ctx| {
-                Err(WrCliError::ArgValidationFailed("test error".to_owned()))
-            })
+            .on_run_e(|_ctx| Err(WrCliError::ArgValidationFailed("test error".to_owned())))
             .execute_with(args(""));
 
         assert!(result.is_err());

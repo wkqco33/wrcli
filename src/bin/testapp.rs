@@ -6,8 +6,8 @@
 //!   testapp fail [--code N]
 //!   testapp tags [--tag <value>...] (StringVec flag demo)
 
+use wrcli::args::{arbitrary_args, minimum_n_args};
 use wrcli::{Command, Flag, FlagValue, WrCliError};
-use wrcli::args::{minimum_n_args, arbitrary_args};
 
 fn main() {
     let result = Command::new("testapp")
@@ -49,13 +49,20 @@ fn main() {
                 .flag(Flag::new("code", FlagValue::Int(1), "exit code to use"))
                 .on_run_e(|ctx| {
                     let code = ctx.flags.get_int("code").unwrap_or(1);
-                    Err(WrCliError::ArgValidationFailed(format!("failing with code {}", code)))
+                    Err(WrCliError::ArgValidationFailed(format!(
+                        "failing with code {}",
+                        code
+                    )))
                 }),
         )
         .subcommand(
             Command::new("tags")
                 .short("Collect repeated --tag flags (StringVec)")
-                .flag(Flag::new("tag", FlagValue::StringVec(vec![]), "a tag (repeatable)"))
+                .flag(Flag::new(
+                    "tag",
+                    FlagValue::StringVec(vec![]),
+                    "a tag (repeatable)",
+                ))
                 .on_run(|ctx| {
                     let tags = ctx.get_string_vec("tag").unwrap_or_default();
                     for tag in &tags {

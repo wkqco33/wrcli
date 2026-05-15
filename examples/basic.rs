@@ -10,6 +10,7 @@ use wrcli::args::{exact_args, no_args};
 use wrcli::{Command, Config, Flag, FlagValue};
 
 fn main() {
+    env_logger::init();
     let config = Config::new()
         .set_config_name("myapp")
         .set_config_type("toml")
