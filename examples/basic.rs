@@ -49,7 +49,10 @@ fn main() {
                         ctx.config.get_int("server.port").unwrap_or(8080)
                     };
                     let host = if ctx.flags.is_set("host") {
-                        ctx.flags.get_string("host").unwrap_or("127.0.0.1").to_owned()
+                        ctx.flags
+                            .get_string("host")
+                            .unwrap_or("127.0.0.1")
+                            .to_owned()
                     } else {
                         ctx.config
                             .get_string("server.host")
