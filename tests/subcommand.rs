@@ -8,6 +8,22 @@ use wrcli::args::exact_args;
 use wrcli::{Command, Flag, FlagValue, WrCliError};
 
 #[test]
+#[should_panic(expected = "conflicts with existing subcommand")]
+fn duplicate_subcommand_name_panics() {
+    Command::new("app")
+        .subcommand(Command::new("sub").on_run(|_| {}))
+        .subcommand(Command::new("sub").on_run(|_| {}));
+}
+
+#[test]
+#[should_panic(expected = "conflicts with existing subcommand")]
+fn subcommand_alias_conflicting_with_existing_name_panics() {
+    Command::new("app")
+        .subcommand(Command::new("serve").on_run(|_| {}))
+        .subcommand(Command::new("run").alias("serve").on_run(|_| {}));
+}
+
+#[test]
 fn subcommand_basic_dispatch() {
     let ran = Arc::new(Mutex::new(false));
     let ran2 = ran.clone();

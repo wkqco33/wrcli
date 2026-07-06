@@ -111,7 +111,20 @@ impl Command {
     }
 
     /// 서브커맨드 추가.
+    ///
+    /// # Panics
+    /// 이름 또는 별칭이 이미 등록된 서브커맨드와 충돌하면 패닉.
     pub fn subcommand(mut self, cmd: Command) -> Self {
+        for existing in &self.subcommands {
+            let names = std::iter::once(&cmd.name).chain(cmd.aliases.iter());
+            for n in names {
+                assert!(
+                    existing.name != *n && !existing.aliases.contains(n),
+                    "wrcli: subcommand name/alias \"{n}\" conflicts with existing subcommand \"{}\"",
+                    existing.name
+                );
+            }
+        }
         self.subcommands.push(cmd);
         self
     }

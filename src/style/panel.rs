@@ -70,12 +70,13 @@ impl Panel {
     ///
     /// `styled = true`이면 ANSI 이스케이프 시퀀스 포함.
     pub fn render(&self, styled: bool) -> String {
+        // 문자 수 기준으로 폭을 계산 (str::len()은 바이트 길이라 비-ASCII에서 정렬이 깨짐).
         let lines: Vec<&str> = self.content.lines().collect();
-        let content_width = lines.iter().map(|l| l.len()).max().unwrap_or(0);
+        let content_width = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
         let title_min = self
             .title
             .as_deref()
-            .map(|t| t.len() + 2 + 4)
+            .map(|t| t.chars().count() + 2 + 4)
             .unwrap_or(0);
         let inner_width = self
             .width
@@ -93,7 +94,7 @@ impl Panel {
             let title_part = format!(" {} ", title);
             let dashes_needed = inner_width + 2;
             let left_dashes = 2;
-            let right_dashes = dashes_needed.saturating_sub(left_dashes + title_part.len());
+            let right_dashes = dashes_needed.saturating_sub(left_dashes + title_part.chars().count());
             buf.push_str(&format!(
                 "{}{}{}{}{}",
                 b("╭"),
@@ -114,7 +115,7 @@ impl Panel {
 
         let padding_str = " ".repeat(pad);
         for line in &lines {
-            let right_fill = inner_width.saturating_sub(line.len());
+            let right_fill = inner_width.saturating_sub(line.chars().count());
             buf.push_str(&format!(
                 "{}{}{}{}{}",
                 b("│"),
@@ -175,5 +176,18 @@ mod tests {
     fn fixed_width() {
         let out = Panel::new("hi").width(40).render(false);
         assert!(out.contains("hi"));
+    }
+
+    #[test]
+    fn non_ascii_lines_stay_aligned() {
+        // 회귀 테스트: 폭 계산이 바이트 길이 기준이면 한글이 포함된 줄의
+        // 우측 테두리(│)가 다른 줄과 다른 문자 위치에 오게 됨.
+        let out = Panel::new("한글 콘텐츠\nshort").render(false);
+        let right_border_col: Vec<usize> = out
+            .lines()
+            .filter(|l| l.starts_with('│'))
+            .map(|l| l.chars().count() - 1)
+            .collect();
+        assert!(right_border_col.windows(2).all(|w| w[0] == w[1]));
     }
 }

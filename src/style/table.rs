@@ -96,14 +96,16 @@ impl Table {
             return String::new();
         }
 
+        // 문자 수 기준으로 폭을 계산해야 format!의 {:<width$} 패딩과 일치함
+        // (str::len()은 바이트 길이라 비-ASCII 문자에서 정렬이 깨짐).
         let mut widths = vec![0usize; col_count];
         for (i, h) in self.headers.iter().enumerate() {
-            widths[i] = widths[i].max(h.len());
+            widths[i] = widths[i].max(h.chars().count());
         }
         for row in &self.rows {
             for (i, cell) in row.iter().enumerate() {
                 if i < col_count {
-                    widths[i] = widths[i].max(cell.len());
+                    widths[i] = widths[i].max(cell.chars().count());
                 }
             }
         }
@@ -197,7 +199,7 @@ impl Table {
                 Align::Left => format!(" {:<width$} ", cell, width = w),
                 Align::Right => format!(" {:>width$} ", cell, width = w),
                 Align::Center => {
-                    let pad = w.saturating_sub(cell.len());
+                    let pad = w.saturating_sub(cell.chars().count());
                     let l = pad / 2;
                     let r = pad - l;
                     format!(" {}{}{} ", " ".repeat(l), cell, " ".repeat(r))
@@ -300,5 +302,30 @@ mod tests {
             .row(["only-a"])
             .render(false);
         assert!(out.contains("only-a"));
+    }
+
+    #[test]
+    fn non_ascii_cells_stay_aligned() {
+        // 회귀 테스트: 폭 계산이 바이트 길이 기준이면 한글 셀이 섞인 열의
+        // 테두리(│)가 줄마다 다른 컬럼에 위치하게 됨.
+        let out = Table::new()
+            .headers(["이름", "설명"])
+            .row(["wrcli", "설명 텍스트"])
+            .row(["ab", "x"])
+            .render(false);
+        // 문자 인덱스(바이트 오프셋 아님) 기준으로 비교해야 함 — 행마다 한글/영문
+        // 바이트 길이가 달라 바이트 오프셋은 애초에 일치하지 않기 때문.
+        let border_positions: Vec<Vec<usize>> = out
+            .lines()
+            .map(|line| {
+                line.chars()
+                    .enumerate()
+                    .filter(|(_, c)| *c == '│')
+                    .map(|(i, _)| i)
+                    .collect()
+            })
+            .filter(|v: &Vec<usize>| !v.is_empty())
+            .collect();
+        assert!(border_positions.windows(2).all(|w| w[0] == w[1]));
     }
 }

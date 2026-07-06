@@ -7,6 +7,22 @@ use std::sync::{Arc, Mutex};
 use wrcli::{Command, Flag, FlagValue, WrCliError};
 
 #[test]
+#[should_panic(expected = "already registered")]
+fn duplicate_short_flag_panics() {
+    Command::new("app")
+        .flag(Flag::new("verbose", FlagValue::Bool(false), "verbose").short('v'))
+        .flag(Flag::new("version", FlagValue::Bool(false), "version").short('v'));
+}
+
+#[test]
+#[should_panic(expected = "already registered")]
+fn duplicate_flag_name_panics() {
+    Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .flag(Flag::new("name", FlagValue::Int(0), "name again"));
+}
+
+#[test]
 fn flag_long_space() {
     let out = Arc::new(Mutex::new(String::new()));
     let out2 = out.clone();

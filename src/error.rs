@@ -1,6 +1,9 @@
 use std::fmt;
 
+/// `non_exhaustive`: 향후 variant 추가가 semver-breaking이 되지 않도록 함.
+/// 소비자는 `match`에 반드시 wildcard(`_`) 분기를 포함해야 함.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum WrCliError {
     // Command routing errors
     UnknownFlag {

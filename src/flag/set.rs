@@ -18,10 +18,23 @@ impl FlagSet {
         Default::default()
     }
 
-    /// 플래그 추가. 같은 이름이 있으면 교체.
+    /// 플래그 추가.
+    ///
+    /// # Panics
+    /// 이름 또는 short 문자가 이미 등록된 플래그와 충돌하면 패닉. 조용히 덮어쓰면
+    /// 잘못된 커맨드 트리 구성을 런타임까지 숨기게 되므로, 구성 시점에 즉시 실패시킴.
     pub fn add(&mut self, flag: Flag) {
         let name = flag.name.clone();
+        assert!(
+            !self.flags.contains_key(&name),
+            "wrcli: flag \"--{name}\" is already registered"
+        );
         if let Some(c) = flag.short {
+            assert!(
+                !self.short_map.contains_key(&c),
+                "wrcli: short flag \"-{c}\" is already registered for \"--{}\"",
+                self.short_map[&c]
+            );
             self.short_map.insert(c, name.clone());
         }
         self.flags.insert(name, flag);
