@@ -150,6 +150,9 @@ fn flag_lhs_len(flag: &Flag, has_any_short: bool) -> usize {
         + type_hint_len(&flag.default)
 }
 
+// has_short 분기는 값은 같지만("-x, "와 패딩 " " 모두 폭 4) 두 케이스의 의미가
+// 다름을 문서화하기 위해 유지.
+#[allow(clippy::if_same_then_else)]
 fn short_prefix_len(has_short: bool, has_any_short: bool) -> usize {
     if !has_any_short {
         0

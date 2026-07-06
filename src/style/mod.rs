@@ -37,6 +37,7 @@
 use std::io::IsTerminal;
 
 mod color;
+#[allow(clippy::module_inception)]
 mod style;
 mod table;
 mod panel;

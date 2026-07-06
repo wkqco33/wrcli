@@ -111,9 +111,9 @@ fn flag_float() {
     Command::new("app")
         .flag(Flag::new("ratio", FlagValue::Float(0.0), "ratio"))
         .on_run(move |ctx| *out2.lock().unwrap() = ctx.flags.get_float("ratio").unwrap())
-        .execute_with(args("--ratio 3.14"))
+        .execute_with(args("--ratio 2.5"))
         .unwrap();
-    assert!(((*out.lock().unwrap()) - 3.14).abs() < 1e-10);
+    assert!(((*out.lock().unwrap()) - 2.5).abs() < 1e-10);
 }
 
 #[test]

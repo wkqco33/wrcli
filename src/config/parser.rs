@@ -94,10 +94,8 @@ fn json_scalar(v: &serde_json::Value) -> Option<ConfigValue> {
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
                 Some(ConfigValue::Int(i))
-            } else if let Some(f) = n.as_f64() {
-                Some(ConfigValue::Float(f))
             } else {
-                None
+                n.as_f64().map(ConfigValue::Float)
             }
         }
         serde_json::Value::Bool(b) => Some(ConfigValue::Bool(*b)),
@@ -148,10 +146,8 @@ fn yaml_scalar(v: &serde_yml::Value) -> Option<ConfigValue> {
         serde_yml::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
                 Some(ConfigValue::Int(i))
-            } else if let Some(f) = n.as_f64() {
-                Some(ConfigValue::Float(f))
             } else {
-                None
+                n.as_f64().map(ConfigValue::Float)
             }
         }
         serde_yml::Value::Bool(b) => Some(ConfigValue::Bool(*b)),

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::error::{Result, WrCliError};
 use super::value::ConfigValue;
@@ -228,15 +228,15 @@ impl Config {
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
 
     fn env_lookup(&self, key: &str) -> Option<String> {
-        if let Some(env_var) = self.explicit_env_bindings.get(key) {
-            if let Ok(v) = std::env::var(env_var) {
-                return Some(v);
-            }
+        if let Some(env_var) = self.explicit_env_bindings.get(key)
+            && let Ok(v) = std::env::var(env_var)
+        {
+            return Some(v);
         }
-        if self.auto_env {
-            if let Ok(v) = std::env::var(self.key_to_env_var(key)) {
-                return Some(v);
-            }
+        if self.auto_env
+            && let Ok(v) = std::env::var(self.key_to_env_var(key))
+        {
+            return Some(v);
         }
         None
     }
@@ -253,13 +253,13 @@ impl Config {
     }
 }
 
-fn expand_path(path: &PathBuf) -> PathBuf {
+fn expand_path(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
     match shellexpand::full(&s) {
         Ok(expanded) => PathBuf::from(expanded.as_ref()),
         Err(e) => {
             log::warn!("경로 확장 실패 '{}': {}", s, e);
-            path.clone()
+            path.to_path_buf()
         }
     }
 }

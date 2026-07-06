@@ -128,13 +128,13 @@ impl Command {
         }
 
         // 등록된 서브커맨드가 있는데 인식 불가 토큰이 오면 명확한 에러 반환
-        if !self.subcommands.is_empty() {
-            if let Some(idx) = candidate {
-                return Err(WrCliError::UnknownSubcommand {
-                    name: args[idx].clone(),
-                    parent: self.name.clone(),
-                });
-            }
+        if !self.subcommands.is_empty()
+            && let Some(idx) = candidate
+        {
+            return Err(WrCliError::UnknownSubcommand {
+                name: args[idx].clone(),
+                parent: self.name.clone(),
+            });
         }
 
         // ── 리프 커맨드 ──────────────────────────────────────────────────────

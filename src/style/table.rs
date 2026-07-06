@@ -122,7 +122,7 @@ impl Table {
                     rsep.push('┼');
                     bot.push('┴');
                 }
-                let dashes: String = std::iter::repeat('─').take(w + 2).collect();
+                let dashes: String = "─".repeat(w + 2);
                 top.push_str(&dashes);
                 hsep.push_str(&dashes);
                 rsep.push_str(&dashes);
@@ -139,7 +139,7 @@ impl Table {
                 .enumerate()
                 .fold(String::new(), |mut s, (i, &w)| {
                     if i > 0 { s.push_str("  "); }
-                    s.extend(std::iter::repeat('-').take(w));
+                    s.extend(std::iter::repeat_n('-', w));
                     s
                 });
             (String::new(), String::new(), String::new(), String::new(), plain + "\n")
@@ -154,10 +154,10 @@ impl Table {
         if !self.headers.is_empty() {
             let row_str = self.render_row(&self.headers, &widths, &self.header_style, styled);
             if self.border {
-                write!(buf, "│{}│\n", row_str).unwrap();
+                writeln!(buf, "│{}│", row_str).unwrap();
                 buf.push_str(&header_sep_line);
             } else {
-                write!(buf, "{}\n", row_str).unwrap();
+                writeln!(buf, "{}", row_str).unwrap();
                 buf.push_str(&plain_sep_line);
             }
         }
@@ -166,12 +166,12 @@ impl Table {
         for (idx, row) in self.rows.iter().enumerate() {
             let row_str = self.render_row(row, &widths, &plain_style, styled);
             if self.border {
-                write!(buf, "│{}│\n", row_str).unwrap();
+                writeln!(buf, "│{}│", row_str).unwrap();
                 if idx < self.rows.len() - 1 {
                     buf.push_str(&row_sep_line);
                 }
             } else {
-                write!(buf, "{}\n", row_str).unwrap();
+                writeln!(buf, "{}", row_str).unwrap();
             }
         }
 
