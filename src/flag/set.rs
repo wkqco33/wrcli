@@ -39,6 +39,12 @@ impl FlagSet {
         self.flags.get(name)
     }
 
+    /// short 문자로 등록된 플래그 정의 조회 (서브커맨드 라우팅 dry-run용).
+    pub(crate) fn short_flag(&self, c: char) -> Option<&Flag> {
+        let name = self.short_map.get(&c)?;
+        self.flags.get(name.as_str())
+    }
+
     /// 플래그 값 조회. 없으면 기본값 반환.
     pub fn get(&self, name: &str) -> Option<&FlagValue> {
         self.values

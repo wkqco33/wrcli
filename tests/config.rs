@@ -43,6 +43,36 @@ fn config_env_var_override() {
 }
 
 #[test]
+fn raw_get_includes_env_layer() {
+    // 회귀 테스트: 타입 무관 raw get()도 문서화된 4계층 우선순위(flag>env>file>default)를 지켜야 함.
+    unsafe {
+        std::env::set_var("WRCLI_TEST_RAW_GET", "42");
+    }
+    let val = Arc::new(Mutex::new(String::new()));
+    let val2 = val.clone();
+    Command::new("app")
+        .with_config(
+            Config::new()
+                .set_default("raw_get", 0i64)
+                .automatic_env()
+                .set_env_prefix("WRCLI_TEST"),
+        )
+        .on_run(move |ctx| {
+            *val2.lock().unwrap() = ctx
+                .config
+                .get("raw_get")
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .unwrap_or_default();
+        })
+        .execute_with(args(""))
+        .unwrap();
+    unsafe {
+        std::env::remove_var("WRCLI_TEST_RAW_GET");
+    }
+    assert_eq!(*val.lock().unwrap(), "42");
+}
+
+#[test]
 fn config_explicit_env_binding() {
     // SAFETY: single-threaded test, no concurrent env access
     unsafe {

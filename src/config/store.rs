@@ -164,10 +164,13 @@ impl Config {
     // ── Getter ───────────────────────────────────────────────────────────────
 
     /// 원시 [`ConfigValue`] 조회. 우선순위: CLI 플래그 > 환경변수 > 설정파일 > 기본값.
-    pub fn get(&self, key: &str) -> Option<&ConfigValue> {
-        if let Some(v) = self.flag_values.get(key) { return Some(v); }
-        if let Some(v) = self.file_values.get(key) { return Some(v); }
-        self.defaults.get(key)
+    ///
+    /// 환경변수는 항상 문자열이므로 [`ConfigValue::String`]으로 감싸 반환됨.
+    pub fn get(&self, key: &str) -> Option<ConfigValue> {
+        if let Some(v) = self.flag_values.get(key) { return Some(v.clone()); }
+        if let Some(v) = self.env_lookup(key) { return Some(ConfigValue::String(v)); }
+        if let Some(v) = self.file_values.get(key) { return Some(v.clone()); }
+        self.defaults.get(key).cloned()
     }
 
     /// `String` 으로 값 조회 (숫자/bool 값도 문자열로 강제 변환).

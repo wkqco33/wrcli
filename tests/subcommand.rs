@@ -91,6 +91,35 @@ fn persistent_flag_visible_in_leaf() {
 }
 
 #[test]
+fn flag_value_matching_subcommand_name_is_not_misrouted() {
+    // 회귀 테스트: --name의 값이 서브커맨드 이름과 같아도 서브커맨드로 오인되면 안 됨.
+    let seen = Arc::new(Mutex::new(String::new()));
+    let seen2 = seen.clone();
+    Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .subcommand(Command::new("name").on_run(|_| {}))
+        .on_run(move |ctx| {
+            *seen2.lock().unwrap() = ctx.flags.get_string("name").unwrap_or("").to_owned();
+        })
+        .execute_with(args("--name name"))
+        .unwrap();
+    assert_eq!(*seen.lock().unwrap(), "name");
+}
+
+#[test]
+fn double_dash_sentinel_prevents_subcommand_routing() {
+    // 회귀 테스트: `--` 이후 토큰은 서브커맨드 이름과 같아도 리터럴 위치 인자로 취급.
+    let positional = Arc::new(Mutex::new(Vec::<String>::new()));
+    let p2 = positional.clone();
+    Command::new("app")
+        .subcommand(Command::new("sub").on_run(|_| {}))
+        .on_run(move |ctx| *p2.lock().unwrap() = ctx.args.clone())
+        .execute_with(args("-- sub"))
+        .unwrap();
+    assert_eq!(*positional.lock().unwrap(), vec!["sub".to_string()]);
+}
+
+#[test]
 fn local_flag_not_visible_in_sibling_subcommand() {
     let err = Command::new("app")
         .subcommand(

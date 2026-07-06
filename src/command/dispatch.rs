@@ -1,8 +1,48 @@
 use crate::config::Config;
 use crate::error::{Result, WrCliError};
+use crate::flag::{FlagSet, FlagValue};
 use super::command::{Command, RunFn};
 use super::context::CommandContext;
 use super::help;
+
+/// 값을 요구하는(bool이 아닌) 플래그인지 여부.
+fn takes_value(default: &FlagValue) -> bool {
+    !matches!(default, FlagValue::Bool(_))
+}
+
+/// 서브커맨드 후보 또는 미인식 위치 인자로 쓰일 수 있는 첫 토큰의 인덱스를 찾는다.
+///
+/// `flags.parse()`를 실제로 호출하지 않고도 값을 소비하는 플래그(`--name value`,
+/// `-c value`)의 값 토큰을 건너뛰어, 그 값이 우연히 서브커맨드 이름과 같아도
+/// 서브커맨드로 오인하지 않도록 한다. `--` sentinel을 만나면 그 이후는 전부
+/// 리터럴 위치 인자이므로 후보 탐색을 중단한다.
+fn find_positional_candidate(args: &[String], flags: &FlagSet) -> Option<usize> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--" {
+            return None;
+        }
+        if let Some(rest) = a.strip_prefix("--") {
+            let name = match rest.find('=') {
+                Some(eq) => &rest[..eq],
+                None => rest,
+            };
+            let consumes_next = !rest.contains('=')
+                && flags.get_flag(name).map(|f| takes_value(&f.default)).unwrap_or(false);
+            i += if consumes_next { 2 } else { 1 };
+            continue;
+        }
+        if a.starts_with('-') && a.len() > 1 {
+            let last = a[1..].chars().last().unwrap();
+            let consumes_next = flags.short_flag(last).map(|f| takes_value(&f.default)).unwrap_or(false);
+            i += if consumes_next { 2 } else { 1 };
+            continue;
+        }
+        return Some(i);
+    }
+    None
+}
 
 impl Command {
     /// 진입점: `std::env::args()`(argv[0] 제외)를 파싱하고 실행.
@@ -39,12 +79,13 @@ impl Command {
         }
 
         // 서브커맨드 라우팅을 먼저 시도해야 `app serve --help`가 serve의 help를 출력함.
-        // 첫 번째 비-플래그 토큰이 서브커맨드 후보.
-        let candidate = args.iter().enumerate().find(|(_, a)| !a.starts_with('-'));
-        let subcommand_pos = candidate.and_then(|(idx, name)| {
+        // 값을 소비하는 플래그의 값 토큰은 건너뛰고 첫 번째 진짜 위치 토큰을 후보로 삼는다.
+        let candidate = find_positional_candidate(&args, &self.flags);
+        let subcommand_pos = candidate.and_then(|idx| {
+            let name = args[idx].as_str();
             self.subcommands
                 .iter()
-                .position(|c| &c.name == name || c.aliases.iter().any(|a| a == name))
+                .position(|c| c.name == name || c.aliases.iter().any(|a| a == name))
                 .map(|pos| (idx, pos))
         });
 
@@ -63,18 +104,10 @@ impl Command {
             return child.dispatch(args, config, pre_chain, post_chain, command_path);
         }
 
-        // 서브커맨드 없음 — 단일 패스로 메타 플래그 + unknown 서브커맨드 감지
-        let mut found_help = false;
-        let mut found_version = false;
-        let mut first_positional: Option<&str> = None;
-        for a in &args {
-            match a.as_str() {
-                "--help" | "-h" => { found_help = true; break; }
-                "--version" | "-V" => { found_version = true; break; }
-                s if !s.starts_with('-') => { first_positional = Some(s); break; }
-                _ => {}
-            }
-        }
+        // 서브커맨드 없음 — 메타 플래그 + unknown 서브커맨드 감지.
+        // 위치와 무관하게 전체를 스캔해야 `app unknown-sub --help`에서도 help가 우선함.
+        let found_help = args.iter().any(|a| a == "--help" || a == "-h");
+        let found_version = args.iter().any(|a| a == "--version" || a == "-V");
 
         if found_help {
             help::print_help(
@@ -96,9 +129,9 @@ impl Command {
 
         // 등록된 서브커맨드가 있는데 인식 불가 토큰이 오면 명확한 에러 반환
         if !self.subcommands.is_empty() {
-            if let Some(unknown) = first_positional {
+            if let Some(idx) = candidate {
                 return Err(WrCliError::UnknownSubcommand {
-                    name: unknown.to_owned(),
+                    name: args[idx].clone(),
                     parent: self.name.clone(),
                 });
             }
