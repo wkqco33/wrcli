@@ -9,7 +9,7 @@
 //! # Quick start
 //!
 //! ```
-//! use wrcli::style::{Color, Style, Panel, Table, Rule, Align};
+//! use wrcli::style::{Color, Style, Panel, Table, Rule, Tree, Text, Progress, Align};
 //!
 //! // 스타일 텍스트
 //! let s = Style::new().fg(Color::Green).bold();
@@ -37,17 +37,23 @@
 use std::io::IsTerminal;
 
 mod color;
+mod panel;
+mod progress;
+mod rule;
 #[allow(clippy::module_inception)]
 mod style;
 mod table;
-mod panel;
-mod rule;
+mod text;
+mod tree;
 
 pub use color::Color;
+pub use panel::Panel;
+pub use progress::Progress;
+pub use rule::Rule;
 pub use style::Style;
 pub use table::{Align, Table};
-pub use panel::Panel;
-pub use rule::Rule;
+pub use text::Text;
+pub use tree::Tree;
 
 // ── TTY 감지 ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +73,56 @@ pub fn stderr_is_styled() -> bool {
         return false;
     }
     std::io::stderr().is_terminal()
+}
+
+/// CJK 문자(한글/한자/가나 등)를 2칸, 나머지를 1칸으로 계산하는 터미널 표시폭.
+pub fn display_width(s: &str) -> usize {
+    s.chars().map(|c| if is_cjk(c) { 2 } else { 1 }).sum()
+}
+
+fn is_cjk(c: char) -> bool {
+    let u = c as u32;
+    matches!(u,
+        // Hangul Jamo
+        0x1100..=0x115F |
+        // Hangul Jamo Extended-A
+        0xA960..=0xA97C |
+        // Hangul Syllables
+        0xAC00..=0xD7AF |
+        // Hangul Jamo Extended-B
+        0xD7B0..=0xD7FF |
+        // CJK Radicals Supplement / Kangxi Radicals
+        0x2E80..=0x303E |
+        // Hiragana
+        0x3040..=0x309F |
+        // Katakana
+        0x30A0..=0x30FF |
+        // Bopomofo
+        0x3100..=0x312F |
+        // Hangul Compatibility Jamo
+        0x3130..=0x318F |
+        // Kanbun / CJK Strokes / Enclosed CJK
+        0x3190..=0x31FF |
+        // CJK Compatibility
+        0x3200..=0x33FF |
+        // CJK Unified Extension A
+        0x3400..=0x4DBF |
+        // CJK Unified Ideographs
+        0x4E00..=0x9FFF |
+        // Yi
+        0xA000..=0xA4CF |
+        // CJK Compatibility Ideographs
+        0xF900..=0xFAFF |
+        // Vertical Forms / CJK Compatibility Forms
+        0xFE10..=0xFE6F |
+        // Fullwidth Forms
+        0xFF01..=0xFF60 |
+        0xFFE0..=0xFFE6 |
+        // CJK Extension B ~ H
+        0x1B000..=0x1B12F |
+        0x20000..=0x2FA1F |
+        0x30000..=0x3134F
+    )
 }
 
 // ── 편의 출력 헬퍼 ───────────────────────────────────────────────────────────

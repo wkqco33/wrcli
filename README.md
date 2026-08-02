@@ -11,7 +11,11 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - 타입 안전 플래그 (`bool`, `string`, `int`, `float`, `string[]`, `int[]`)
 - persistent 플래그 — 루트에 등록하면 모든 서브커맨드에 자동 전파
 - 4계층 설정 우선순위: 기본값 → 파일(TOML/JSON/YAML) → 환경변수 → CLI 플래그
+- 설정 파일 **자동 탐지** (`set_config_file`, 형식/경로 자동 판별)
+- **Config ↔ Flag 자동 바인딩** — 명시되지 않은 플래그를 설정값으로 시드
 - 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
+- **Completion 스크립트 생성** (bash / zsh / fish)
+- 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`
 - `execute_with()` — 실제 argv 없이 인수를 직접 주입해 단위 테스트 가능
 - `--help` / `--version` 자동 생성
 
@@ -86,18 +90,22 @@ cargo run --example styled
 
 ## 문서
 
-상세 레퍼런스는 [GUIDE.md](GUIDE.md)를 참고하세요.
+상세 레퍼런스는 [GUIDE.md](GUIDE.md)를, 터미널 스타일링은 [STYLE.md](STYLE.md)를 참고하세요.
 
 | 항목 | 바로가기 |
 | ---- | ------- |
 | 커맨드 & 서브커맨드 | [GUIDE.md#커맨드](GUIDE.md#커맨드) |
 | 플래그 타입 & 파싱 문법 | [GUIDE.md#플래그](GUIDE.md#플래그) |
 | 설정(Config) & 우선순위 | [GUIDE.md#설정config](GUIDE.md#설정config) |
+| 설정 파일 자동 탐지 | [GUIDE.md#설정-파일-자동-탐지](GUIDE.md#설정-파일-자동-탐지) |
+| Config ↔ Flag 바인딩 | [GUIDE.md#config--flag-자동-바인딩](GUIDE.md#config--flag-자동-바인딩) |
+| Completion 생성 | [GUIDE.md#completion-스크립트-생성](GUIDE.md#completion-스크립트-생성) |
 | 라이프사이클 훅 | [GUIDE.md#라이프사이클-훅](GUIDE.md#라이프사이클-훅) |
 | CommandContext | [GUIDE.md#commandcontext](GUIDE.md#commandcontext) |
 | 에러 처리 | [GUIDE.md#에러-처리](GUIDE.md#에러-처리) |
 | 테스트 작성 | [GUIDE.md#테스트-작성](GUIDE.md#테스트-작성) |
 | 피처 플래그 | [GUIDE.md#피처-플래그](GUIDE.md#피처-플래그) |
+| 터미널 스타일링 | [STYLE.md](STYLE.md) |
 
 ---
 

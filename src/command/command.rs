@@ -1,8 +1,8 @@
+use super::args;
 use crate::command::context::CommandContext;
 use crate::config::Config;
 use crate::error::Result;
 use crate::flag::{Flag, FlagSet};
-use super::args;
 
 /// 인자 없이 실행되는 콜백 타입.
 pub type RunFn = Box<dyn for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync>;
@@ -54,13 +54,15 @@ pub struct Command {
 
 impl Command {
     pub fn new(name: &str) -> Self {
+        let mut flags = FlagSet::new();
+        flags.set_command_name(name);
         Command {
             name: name.to_owned(),
             short: String::new(),
             long: String::new(),
             version: None,
             aliases: Vec::new(),
-            flags: FlagSet::new(),
+            flags,
             subcommands: Vec::new(),
             arg_validator: None,
             persistent_pre_run: None,

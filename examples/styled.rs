@@ -4,8 +4,7 @@
 //!   cargo run --example styled
 
 use wrcli::style::{
-    Align, Color, Panel, Rule, Style, Table,
-    print_error, print_info, print_success, print_warning,
+    Align, Color, Panel, Rule, Style, Table, print_error, print_info, print_success, print_warning,
 };
 
 fn main() {
@@ -41,11 +40,11 @@ fn main() {
         .width(60)
         .print();
 
-    let bold      = Style::new().bold();
-    let italic    = Style::new().italic();
+    let bold = Style::new().bold();
+    let italic = Style::new().italic();
     let underline = Style::new().underline();
-    let strike    = Style::new().strikethrough();
-    let dim       = Style::new().dim();
+    let strike = Style::new().strikethrough();
+    let dim = Style::new().dim();
     let highlight = Style::new().fg(Color::Black).bg(Color::BrightYellow);
 
     // Detect TTY once so we can pass the flag consistently.
@@ -71,16 +70,40 @@ fn main() {
         .print();
 
     let colors = [
-        Color::Black,   Color::Red,     Color::Green,   Color::Yellow,
-        Color::Blue,    Color::Magenta, Color::Cyan,    Color::White,
-        Color::BrightBlack, Color::BrightRed, Color::BrightGreen, Color::BrightYellow,
-        Color::BrightBlue,  Color::BrightMagenta, Color::BrightCyan, Color::BrightWhite,
+        Color::Black,
+        Color::Red,
+        Color::Green,
+        Color::Yellow,
+        Color::Blue,
+        Color::Magenta,
+        Color::Cyan,
+        Color::White,
+        Color::BrightBlack,
+        Color::BrightRed,
+        Color::BrightGreen,
+        Color::BrightYellow,
+        Color::BrightBlue,
+        Color::BrightMagenta,
+        Color::BrightCyan,
+        Color::BrightWhite,
     ];
     let names = [
-        "Black", "Red", "Green", "Yellow",
-        "Blue", "Magenta", "Cyan", "White",
-        "BrightBlack", "BrightRed", "BrightGreen", "BrightYellow",
-        "BrightBlue", "BrightMagenta", "BrightCyan", "BrightWhite",
+        "Black",
+        "Red",
+        "Green",
+        "Yellow",
+        "Blue",
+        "Magenta",
+        "Cyan",
+        "White",
+        "BrightBlack",
+        "BrightRed",
+        "BrightGreen",
+        "BrightYellow",
+        "BrightBlue",
+        "BrightMagenta",
+        "BrightCyan",
+        "BrightWhite",
     ];
     let mut row = String::new();
     for (i, (c, name)) in colors.iter().zip(names.iter()).enumerate() {
@@ -103,10 +126,10 @@ fn main() {
     Table::new()
         .header_style(Style::new().bold().fg(Color::BrightCyan))
         .headers(["Crate", "Version", "Description"])
-        .row(["wrcli",      "0.1.0", "Cobra/Viper-inspired CLI framework"])
-        .row(["serde",      "1.0",   "De/serialization framework"])
-        .row(["tokio",      "1.38",  "Async runtime"])
-        .row(["clap",       "4.5",   "Command Line Argument Parser"])
+        .row(["wrcli", "0.1.0", "Cobra/Viper-inspired CLI framework"])
+        .row(["serde", "1.0", "De/serialization framework"])
+        .row(["tokio", "1.38", "Async runtime"])
+        .row(["clap", "4.5", "Command Line Argument Parser"])
         .align(vec![Align::Left, Align::Center, Align::Left])
         .print();
 
@@ -127,11 +150,13 @@ fn main() {
 
     println!();
 
-    Panel::new("Connection to database timed out after 30s.\nCheck that postgres is running on port 5432.")
-        .title("Error")
-        .border_style(Style::new().fg(Color::Red))
-        .title_style(Style::new().bold().fg(Color::BrightRed))
-        .print();
+    Panel::new(
+        "Connection to database timed out after 30s.\nCheck that postgres is running on port 5432.",
+    )
+    .title("Error")
+    .border_style(Style::new().fg(Color::Red))
+    .title_style(Style::new().bold().fg(Color::BrightRed))
+    .print();
 
     println!();
 

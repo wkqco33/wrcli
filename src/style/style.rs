@@ -21,8 +21,10 @@ pub struct Style {
     pub dim: bool,
     pub italic: bool,
     pub underline: bool,
+    pub overline: bool,
     pub blink: bool,
     pub reverse: bool,
+    pub hide: bool,
     pub strikethrough: bool,
 }
 
@@ -61,6 +63,11 @@ impl Style {
         self
     }
 
+    pub fn overline(mut self) -> Self {
+        self.overline = true;
+        self
+    }
+
     pub fn blink(mut self) -> Self {
         self.blink = true;
         self
@@ -68,6 +75,11 @@ impl Style {
 
     pub fn reverse(mut self) -> Self {
         self.reverse = true;
+        self
+    }
+
+    pub fn hide(mut self) -> Self {
+        self.hide = true;
         self
     }
 
@@ -84,16 +96,40 @@ impl Style {
         if !styled || self.is_plain() {
             return text.to_owned();
         }
-        let mut codes: Vec<String> = Vec::new();
-        if self.bold { codes.push("1".to_owned()); }
-        if self.dim { codes.push("2".to_owned()); }
-        if self.italic { codes.push("3".to_owned()); }
-        if self.underline { codes.push("4".to_owned()); }
-        if self.blink { codes.push("5".to_owned()); }
-        if self.reverse { codes.push("7".to_owned()); }
-        if self.strikethrough { codes.push("9".to_owned()); }
-        if let Some(fg) = self.fg { codes.push(fg.fg_code()); }
-        if let Some(bg) = self.bg { codes.push(bg.bg_code()); }
+        let mut codes: Vec<String> = Vec::with_capacity(11);
+        if self.bold {
+            codes.push("1".to_owned());
+        }
+        if self.dim {
+            codes.push("2".to_owned());
+        }
+        if self.italic {
+            codes.push("3".to_owned());
+        }
+        if self.underline {
+            codes.push("4".to_owned());
+        }
+        if self.blink {
+            codes.push("5".to_owned());
+        }
+        if self.reverse {
+            codes.push("7".to_owned());
+        }
+        if self.hide {
+            codes.push("8".to_owned());
+        }
+        if self.strikethrough {
+            codes.push("9".to_owned());
+        }
+        if self.overline {
+            codes.push("53".to_owned());
+        }
+        if let Some(fg) = self.fg {
+            codes.push(fg.fg_code_owned());
+        }
+        if let Some(bg) = self.bg {
+            codes.push(bg.bg_code_owned());
+        }
 
         if codes.is_empty() {
             text.to_owned()
@@ -109,8 +145,10 @@ impl Style {
             && !self.dim
             && !self.italic
             && !self.underline
+            && !self.overline
             && !self.blink
             && !self.reverse
+            && !self.hide
             && !self.strikethrough
     }
 }
@@ -155,5 +193,19 @@ mod tests {
         let out = s.apply("x", true);
         assert!(out.starts_with("\x1b["));
         assert!(out.contains("x"));
+    }
+
+    #[test]
+    fn overline_and_hide_codes() {
+        let s = Style::new().overline().hide();
+        let out = s.apply("x", true);
+        assert!(out.starts_with("\x1b[8;53m"), "got: {}", out);
+        assert!(out.contains("x"));
+    }
+
+    #[test]
+    fn overline_hide_passthrough_when_unstyled() {
+        let s = Style::new().overline().hide();
+        assert_eq!(s.apply("x", false), "x");
     }
 }

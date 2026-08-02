@@ -15,6 +15,8 @@ pub enum WrCliError {
         parent: String,
     },
     MissingRequiredFlag(String),
+    /// 플래그는 제공되었지만 값이 누락됨 (예: `--name` without value).
+    MissingFlagValue(String),
     InvalidFlagValue {
         flag: String,
         expected: &'static str,
@@ -39,6 +41,9 @@ pub enum WrCliError {
 
     // IO errors
     Io(std::io::Error),
+
+    // Completion generation errors
+    UnsupportedCompletionShell(String),
 }
 
 impl WrCliError {
@@ -72,6 +77,13 @@ impl fmt::Display for WrCliError {
                     name
                 )
             }
+            WrCliError::MissingFlagValue(name) => {
+                write!(
+                    f,
+                    "flag '--{}' requires a value  Run with --help for usage.",
+                    name
+                )
+            }
             WrCliError::InvalidFlagValue {
                 flag,
                 expected,
@@ -101,19 +113,34 @@ impl fmt::Display for WrCliError {
                 write!(f, "failed to parse config '{}': {}", path, source)
             }
             WrCliError::UnsupportedConfigFormat(ext) => {
-                let mut supported = Vec::new();
-                #[cfg(feature = "toml-config")] supported.push("toml");
-                #[cfg(feature = "json-config")] supported.push("json");
-                #[cfg(feature = "yaml-config")] supported.push("yaml");
+                #[allow(unused_mut)]
+                let mut supported: Vec<&str> = Vec::new();
+                #[cfg(feature = "toml-config")]
+                supported.push("toml");
+                #[cfg(feature = "json-config")]
+                supported.push("json");
+                #[cfg(feature = "yaml-config")]
+                supported.push("yaml");
                 write!(
                     f,
                     "unsupported config format '{}' (supported: {})",
                     ext,
-                    if supported.is_empty() { "none enabled".to_owned() } else { supported.join(", ") }
+                    if supported.is_empty() {
+                        "none enabled".to_owned()
+                    } else {
+                        supported.join(", ")
+                    }
                 )
             }
             WrCliError::UserError(e) => write!(f, "{}", e),
             WrCliError::Io(e) => write!(f, "io error: {}", e),
+            WrCliError::UnsupportedCompletionShell(shell) => {
+                write!(
+                    f,
+                    "unsupported completion shell '{}' (supported: bash, zsh, fish)",
+                    shell
+                )
+            }
         }
     }
 }
@@ -136,17 +163,9 @@ impl From<std::io::Error> for WrCliError {
     }
 }
 
-impl From<toml::de::Error> for WrCliError {
-    fn from(e: toml::de::Error) -> Self {
-        WrCliError::ConfigParseError {
-            path: String::new(),
-            source: e.to_string(),
-        }
-    }
-}
-
-impl From<serde_json::Error> for WrCliError {
-    fn from(e: serde_json::Error) -> Self {
+#[cfg(feature = "yaml-config")]
+impl From<noyalib::Error> for WrCliError {
+    fn from(e: noyalib::Error) -> Self {
         WrCliError::ConfigParseError {
             path: String::new(),
             source: e.to_string(),

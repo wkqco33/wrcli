@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use crate::error::{Result, WrCliError};
 use super::value::ConfigValue;
+use crate::error::{Result, WrCliError};
+use std::collections::HashMap;
 
 /// 설정 파일 내용을 파싱해서 플랫 키-값 맵으로 변환.
 pub(super) fn parse_config_content(
-    content: &str,
+    #[allow(unused)] content: &str,
     ext: &str,
     path: &str,
 ) -> Result<HashMap<String, ConfigValue>> {
@@ -23,8 +23,13 @@ pub(super) fn parse_config_content(
     }
 }
 
+#[allow(dead_code)]
 fn child_key(prefix: &str, key: &str) -> String {
-    if prefix.is_empty() { key.to_owned() } else { format!("{}.{}", prefix, key) }
+    if prefix.is_empty() {
+        key.to_owned()
+    } else {
+        format!("{}.{}", prefix, key)
+    }
 }
 
 // ── TOML ──────────────────────────────────────────────────────────────────────
@@ -129,8 +134,8 @@ fn flatten_json(prefix: &str, value: &serde_json::Value, map: &mut HashMap<Strin
 
 #[cfg(feature = "yaml-config")]
 fn parse_yaml(content: &str, path: &str) -> Result<HashMap<String, ConfigValue>> {
-    let value: serde_yml::Value =
-        serde_yml::from_str(content).map_err(|e| WrCliError::ConfigParseError {
+    let value: noyalib::Value =
+        noyalib::from_str(content).map_err(|e| WrCliError::ConfigParseError {
             path: path.to_owned(),
             source: e.to_string(),
         })?;
@@ -140,39 +145,37 @@ fn parse_yaml(content: &str, path: &str) -> Result<HashMap<String, ConfigValue>>
 }
 
 #[cfg(feature = "yaml-config")]
-fn yaml_scalar(v: &serde_yml::Value) -> Option<ConfigValue> {
+fn yaml_scalar(v: &noyalib::Value) -> Option<ConfigValue> {
     match v {
-        serde_yml::Value::String(s) => Some(ConfigValue::String(s.clone())),
-        serde_yml::Value::Number(n) => {
+        noyalib::Value::String(s) => Some(ConfigValue::String(s.clone())),
+        noyalib::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
                 Some(ConfigValue::Int(i))
             } else {
-                n.as_f64().map(ConfigValue::Float)
+                Some(ConfigValue::Float(n.as_f64()))
             }
         }
-        serde_yml::Value::Bool(b) => Some(ConfigValue::Bool(*b)),
+        noyalib::Value::Bool(b) => Some(ConfigValue::Bool(*b)),
         _ => None,
     }
 }
 
 #[cfg(feature = "yaml-config")]
-fn flatten_yaml(prefix: &str, value: &serde_yml::Value, map: &mut HashMap<String, ConfigValue>) {
+fn flatten_yaml(prefix: &str, value: &noyalib::Value, map: &mut HashMap<String, ConfigValue>) {
     match value {
-        serde_yml::Value::Mapping(m) => {
+        noyalib::Value::Mapping(m) => {
             for (k, v) in m {
-                if let Some(key_str) = k.as_str() {
-                    let key = child_key(prefix, key_str);
-                    flatten_yaml(&key, v, map);
-                }
+                let key = child_key(prefix, k.as_str());
+                flatten_yaml(&key, v, map);
             }
         }
-        serde_yml::Value::Sequence(arr) => {
+        noyalib::Value::Sequence(arr) => {
             let cv: Vec<ConfigValue> = arr.iter().filter_map(yaml_scalar).collect();
             map.insert(prefix.to_owned(), ConfigValue::Array(cv));
         }
-        serde_yml::Value::Null => {}
-        serde_yml::Value::Tagged(tagged) => {
-            flatten_yaml(prefix, &tagged.value, map);
+        noyalib::Value::Null => {}
+        noyalib::Value::Tagged(tagged) => {
+            flatten_yaml(prefix, tagged.value(), map);
         }
         other => {
             if let Some(cv) = yaml_scalar(other) {

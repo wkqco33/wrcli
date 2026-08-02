@@ -1,4 +1,4 @@
-use super::{Style, Color, stdout_is_styled};
+use super::{Color, Style, display_width, stdout_is_styled};
 
 /// 컬럼 텍스트 정렬.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -100,12 +100,12 @@ impl Table {
         // (str::len()은 바이트 길이라 비-ASCII 문자에서 정렬이 깨짐).
         let mut widths = vec![0usize; col_count];
         for (i, h) in self.headers.iter().enumerate() {
-            widths[i] = widths[i].max(h.chars().count());
+            widths[i] = widths[i].max(display_width(h));
         }
         for row in &self.rows {
             for (i, cell) in row.iter().enumerate() {
                 if i < col_count {
-                    widths[i] = widths[i].max(cell.chars().count());
+                    widths[i] = widths[i].max(display_width(cell));
                 }
             }
         }
@@ -140,11 +140,19 @@ impl Table {
                 .iter()
                 .enumerate()
                 .fold(String::new(), |mut s, (i, &w)| {
-                    if i > 0 { s.push_str("  "); }
+                    if i > 0 {
+                        s.push_str("  ");
+                    }
                     s.extend(std::iter::repeat_n('-', w));
                     s
                 });
-            (String::new(), String::new(), String::new(), String::new(), plain + "\n")
+            (
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                plain + "\n",
+            )
         };
 
         let mut buf = String::new();
@@ -195,11 +203,18 @@ impl Table {
         for (i, &w) in widths.iter().enumerate() {
             let cell = cells.get(i).map(|s| s.as_str()).unwrap_or("");
             let align = self.col_align.get(i).copied().unwrap_or(Align::Left);
+            let cell_w = display_width(cell);
+            let pad = w.saturating_sub(cell_w);
             let padded = match align {
-                Align::Left => format!(" {:<width$} ", cell, width = w),
-                Align::Right => format!(" {:>width$} ", cell, width = w),
+                Align::Left => {
+                    let s = format!(" {}{} ", cell, " ".repeat(pad));
+                    s
+                }
+                Align::Right => {
+                    let s = format!(" {}{} ", " ".repeat(pad), cell);
+                    s
+                }
                 Align::Center => {
-                    let pad = w.saturating_sub(cell.chars().count());
                     let l = pad / 2;
                     let r = pad - l;
                     format!(" {}{}{} ", " ".repeat(l), cell, " ".repeat(r))
@@ -306,22 +321,25 @@ mod tests {
 
     #[test]
     fn non_ascii_cells_stay_aligned() {
-        // 회귀 테스트: 폭 계산이 바이트 길이 기준이면 한글 셀이 섞인 열의
-        // 테두리(│)가 줄마다 다른 컬럼에 위치하게 됨.
+        // 회귀 테스트: display_width 기준으로 패딩이 계산되어야
+        // 모든 행의 테두리(│)가 같은 표시폭 위치에 정렬됨.
         let out = Table::new()
             .headers(["이름", "설명"])
             .row(["wrcli", "설명 텍스트"])
             .row(["ab", "x"])
             .render(false);
-        // 문자 인덱스(바이트 오프셋 아님) 기준으로 비교해야 함 — 행마다 한글/영문
-        // 바이트 길이가 달라 바이트 오프셋은 애초에 일치하지 않기 때문.
+        // display_width 기준으로 │ 위치가 모든 행에서 일치해야 함
         let border_positions: Vec<Vec<usize>> = out
             .lines()
             .map(|line| {
+                let mut pos = 0usize;
                 line.chars()
-                    .enumerate()
-                    .filter(|(_, c)| *c == '│')
-                    .map(|(i, _)| i)
+                    .filter_map(|c| {
+                        let w = crate::style::display_width(&c.to_string());
+                        let p = pos;
+                        pos += w;
+                        if c == '│' { Some(p) } else { None }
+                    })
                     .collect()
             })
             .filter(|v: &Vec<usize>| !v.is_empty())

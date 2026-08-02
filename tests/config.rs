@@ -1,7 +1,7 @@
 //! Config 설정 시스템 및 Flag↔Config 바인딩 통합 테스트.
 
 mod common;
-use common::{args, tempdir};
+use common::{EnvGuard, args, tempdir};
 
 use std::sync::{Arc, Mutex};
 use wrcli::{Command, Config, Flag, FlagValue};
@@ -20,10 +20,7 @@ fn config_default_value() {
 
 #[test]
 fn config_env_var_override() {
-    // SAFETY: single-threaded test, no concurrent env access
-    unsafe {
-        std::env::set_var("WRCLI_TEST_PORT", "9999");
-    }
+    let _g = EnvGuard::set("WRCLI_TEST_PORT", "9999");
     let val = Arc::new(Mutex::new(0i64));
     let val2 = val.clone();
     Command::new("app")
@@ -36,18 +33,12 @@ fn config_env_var_override() {
         .on_run(move |ctx| *val2.lock().unwrap() = ctx.config.get_int("port").unwrap())
         .execute_with(args(""))
         .unwrap();
-    unsafe {
-        std::env::remove_var("WRCLI_TEST_PORT");
-    }
     assert_eq!(*val.lock().unwrap(), 9999);
 }
 
 #[test]
 fn raw_get_includes_env_layer() {
-    // 회귀 테스트: 타입 무관 raw get()도 문서화된 4계층 우선순위(flag>env>file>default)를 지켜야 함.
-    unsafe {
-        std::env::set_var("WRCLI_TEST_RAW_GET", "42");
-    }
+    let _g = EnvGuard::set("WRCLI_TEST_RAW_GET", "42");
     let val = Arc::new(Mutex::new(String::new()));
     let val2 = val.clone();
     Command::new("app")
@@ -66,18 +57,12 @@ fn raw_get_includes_env_layer() {
         })
         .execute_with(args(""))
         .unwrap();
-    unsafe {
-        std::env::remove_var("WRCLI_TEST_RAW_GET");
-    }
     assert_eq!(*val.lock().unwrap(), "42");
 }
 
 #[test]
 fn config_explicit_env_binding() {
-    // SAFETY: single-threaded test, no concurrent env access
-    unsafe {
-        std::env::set_var("MY_CUSTOM_VAR", "hello");
-    }
+    let _g = EnvGuard::set("MY_CUSTOM_VAR", "hello");
     let val = Arc::new(Mutex::new(String::new()));
     let val2 = val.clone();
     Command::new("app")
@@ -85,12 +70,10 @@ fn config_explicit_env_binding() {
         .on_run(move |ctx| *val2.lock().unwrap() = ctx.config.get_string("greeting").unwrap())
         .execute_with(args(""))
         .unwrap();
-    unsafe {
-        std::env::remove_var("MY_CUSTOM_VAR");
-    }
     assert_eq!(*val.lock().unwrap(), "hello");
 }
 
+#[cfg(feature = "toml-config")]
 #[test]
 fn config_toml_file() {
     use std::io::Write;
@@ -114,6 +97,7 @@ fn config_toml_file() {
     assert_eq!(*val.lock().unwrap(), 7777);
 }
 
+#[cfg(feature = "json-config")]
 #[test]
 fn config_json_file() {
     use std::io::Write;
@@ -195,6 +179,7 @@ fn flag_value_visible_via_config_get() {
     );
 }
 
+#[cfg(feature = "toml-config")]
 #[test]
 fn flag_default_does_not_shadow_config_file() {
     use std::io::Write;
@@ -225,6 +210,7 @@ fn flag_default_does_not_shadow_config_file() {
     );
 }
 
+#[cfg(feature = "toml-config")]
 #[test]
 fn flag_overrides_config_file_value() {
     use std::io::Write;
@@ -270,6 +256,105 @@ fn persistent_flag_bound_into_config() {
         *config_val.lock().unwrap(),
         "persistent flag should appear in config"
     );
+}
+
+#[cfg(feature = "toml-config")]
+#[test]
+fn config_set_config_file_explicit_path() {
+    use std::io::Write;
+    let dir = tempdir();
+    let mut f = std::fs::File::create(dir.path().join("custom.toml")).unwrap();
+    writeln!(f, "port = 1234").unwrap();
+
+    let val = Arc::new(Mutex::new(0i64));
+    let val2 = val.clone();
+    let mut cfg = Config::new().set_config_file(dir.path().join("custom.toml"));
+    cfg.read_in_config().unwrap();
+
+    Command::new("app")
+        .with_config(cfg)
+        .on_run(move |ctx| *val2.lock().unwrap() = ctx.config.get_int("port").unwrap())
+        .execute_with(args(""))
+        .unwrap();
+    assert_eq!(*val.lock().unwrap(), 1234);
+}
+
+#[cfg(feature = "toml-config")]
+#[test]
+fn config_auto_detects_format_when_type_unset() {
+    use std::io::Write;
+    let dir = tempdir();
+    let mut f = std::fs::File::create(dir.path().join("app.toml")).unwrap();
+    writeln!(f, "timeout = 42").unwrap();
+
+    let val = Arc::new(Mutex::new(0i64));
+    let val2 = val.clone();
+    let mut cfg = Config::new()
+        .set_config_name("app")
+        .add_config_path(dir.path().to_path_buf());
+    cfg.read_in_config().unwrap();
+
+    Command::new("app")
+        .with_config(cfg)
+        .on_run(move |ctx| *val2.lock().unwrap() = ctx.config.get_int("timeout").unwrap())
+        .execute_with(args(""))
+        .unwrap();
+    assert_eq!(*val.lock().unwrap(), 42);
+}
+
+#[cfg(feature = "json-config")]
+#[test]
+fn config_auto_discovery_default_paths() {
+    use std::io::Write;
+    let home = tempdir();
+    let cfg_dir = home.path().join(".config").join("myapp");
+    std::fs::create_dir_all(&cfg_dir).unwrap();
+    let mut f = std::fs::File::create(cfg_dir.join("myapp.json")).unwrap();
+    writeln!(f, r#"{{"host": "auto.example.com"}}"#).unwrap();
+
+    let _g = EnvGuard::set("HOME", home.path().to_str().unwrap());
+
+    let val = Arc::new(Mutex::new(String::new()));
+    let val2 = val.clone();
+    let mut cfg = Config::new().set_config_name("myapp").automatic_env();
+    cfg.read_in_config().unwrap();
+
+    Command::new("app")
+        .with_config(cfg)
+        .on_run(move |ctx| *val2.lock().unwrap() = ctx.config.get_string("host").unwrap())
+        .execute_with(args(""))
+        .unwrap();
+    assert_eq!(*val.lock().unwrap(), "auto.example.com");
+}
+
+#[test]
+fn config_seeds_flag_default_when_flag_unset() {
+    let val = Arc::new(Mutex::new(0i64));
+    let val2 = val.clone();
+    Command::new("app")
+        .flag(Flag::new("port", FlagValue::Int(0), "port"))
+        .with_config(Config::new().set_default("port", 8080i64))
+        .on_run(move |ctx| *val2.lock().unwrap() = ctx.flags.get_int("port").unwrap())
+        .execute_with(args(""))
+        .unwrap();
+    assert_eq!(
+        *val.lock().unwrap(),
+        8080,
+        "flag value should fall back to config when not explicitly set"
+    );
+}
+
+#[test]
+fn config_does_not_seed_flag_when_explicitly_set() {
+    let val = Arc::new(Mutex::new(0i64));
+    let val2 = val.clone();
+    Command::new("app")
+        .flag(Flag::new("port", FlagValue::Int(0), "port"))
+        .with_config(Config::new().set_default("port", 8080i64))
+        .on_run(move |ctx| *val2.lock().unwrap() = ctx.flags.get_int("port").unwrap())
+        .execute_with(args("--port 3000"))
+        .unwrap();
+    assert_eq!(*val.lock().unwrap(), 3000);
 }
 
 #[cfg(feature = "yaml-config")]

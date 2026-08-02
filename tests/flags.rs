@@ -39,7 +39,11 @@ fn flag_long_equals() {
     let out = Arc::new(Mutex::new(String::new()));
     let out2 = out.clone();
     Command::new("app")
-        .flag(Flag::new("output", FlagValue::String(String::new()), "output"))
+        .flag(Flag::new(
+            "output",
+            FlagValue::String(String::new()),
+            "output",
+        ))
         .on_run(move |ctx| {
             *out2.lock().unwrap() = ctx.flags.get_string("output").unwrap().to_owned()
         })
@@ -147,6 +151,20 @@ fn flag_string_vec() {
 }
 
 #[test]
+fn flag_int_vec() {
+    let out: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(vec![]));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("num", FlagValue::IntVec(vec![]), "numbers"))
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_int_vec("num").unwrap_or_default().to_vec();
+        })
+        .execute_with(args("--num 10 --num 20 --num 30"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), vec![10, 20, 30]);
+}
+
+#[test]
 fn flag_double_dash_sentinel() {
     let out: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
     let out2 = out.clone();
@@ -180,6 +198,26 @@ fn flag_required_missing_returns_error() {
 }
 
 #[test]
+fn flag_missing_value_returns_error() {
+    let err = Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .on_run(|_| {})
+        .execute_with(args("--name"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::MissingFlagValue(n) if n == "name"));
+}
+
+#[test]
+fn flag_short_missing_value_returns_error() {
+    let err = Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name").short('n'))
+        .on_run(|_| {})
+        .execute_with(args("-n"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::MissingFlagValue(n) if n == "name"));
+}
+
+#[test]
 fn flag_unknown_returns_error() {
     let err = Command::new("app")
         .on_run(|_| {})
@@ -196,4 +234,88 @@ fn flag_invalid_int_returns_error() {
         .execute_with(args("--port not-a-number"))
         .unwrap_err();
     assert!(matches!(err, WrCliError::InvalidFlagValue { .. }));
+}
+
+#[test]
+fn flag_invalid_float_returns_error() {
+    let err = Command::new("app")
+        .flag(Flag::new("ratio", FlagValue::Float(0.0), "ratio"))
+        .on_run(|_| {})
+        .execute_with(args("--ratio not-a-float"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::InvalidFlagValue { .. }));
+}
+
+#[test]
+fn flag_bool_explicit_true_via_equals() {
+    let out = Arc::new(Mutex::new(false));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("verbose", FlagValue::Bool(false), "verbose"))
+        .on_run(move |ctx| *out2.lock().unwrap() = ctx.flags.get_bool("verbose").unwrap())
+        .execute_with(args("--verbose=true"))
+        .unwrap();
+    assert!(*out.lock().unwrap());
+}
+
+#[test]
+fn flag_bool_unknown_value_defaults_to_false() {
+    let out = Arc::new(Mutex::new(true));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("verbose", FlagValue::Bool(true), "verbose"))
+        .on_run(move |ctx| *out2.lock().unwrap() = ctx.flags.get_bool("verbose").unwrap())
+        .execute_with(args("--verbose=maybe"))
+        .unwrap();
+    assert!(!*out.lock().unwrap());
+}
+
+#[test]
+fn flag_is_set_returns_true_when_provided() {
+    let is_set = Arc::new(Mutex::new(false));
+    let is_set2 = is_set.clone();
+    Command::new("app")
+        .flag(Flag::new("port", FlagValue::Int(8080), "port"))
+        .on_run(move |ctx| *is_set2.lock().unwrap() = ctx.flags.is_set("port"))
+        .execute_with(args("--port 3000"))
+        .unwrap();
+    assert!(*is_set.lock().unwrap());
+}
+
+#[test]
+fn flag_is_set_returns_false_when_default() {
+    let is_set = Arc::new(Mutex::new(true));
+    let is_set2 = is_set.clone();
+    Command::new("app")
+        .flag(Flag::new("port", FlagValue::Int(8080), "port"))
+        .on_run(move |ctx| *is_set2.lock().unwrap() = ctx.flags.is_set("port"))
+        .execute_with(args(""))
+        .unwrap();
+    assert!(!*is_set.lock().unwrap());
+}
+
+#[test]
+fn flag_empty_value_after_equals_parsed_as_empty_string() {
+    let out = Arc::new(Mutex::new(String::new()));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_string("name").unwrap_or("").to_owned()
+        })
+        .execute_with(args("--name="))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), "");
+}
+
+#[test]
+fn flag_value_starting_with_dash() {
+    let out = Arc::new(Mutex::new(String::new()));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .on_run(move |ctx| *out2.lock().unwrap() = ctx.flags.get_string("name").unwrap().to_owned())
+        .execute_with(args("--name -foo"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), "-foo");
 }

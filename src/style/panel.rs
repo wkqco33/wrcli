@@ -1,4 +1,4 @@
-use super::{Style, Color, stdout_is_styled};
+use super::{Color, Style, display_width, stdout_is_styled};
 
 /// Unicode 박스 그리기 문자로 테두리를 표시하는 패널 (선택적 제목 포함).
 ///
@@ -72,11 +72,11 @@ impl Panel {
     pub fn render(&self, styled: bool) -> String {
         // 문자 수 기준으로 폭을 계산 (str::len()은 바이트 길이라 비-ASCII에서 정렬이 깨짐).
         let lines: Vec<&str> = self.content.lines().collect();
-        let content_width = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+        let content_width = lines.iter().map(|l| display_width(l)).max().unwrap_or(0);
         let title_min = self
             .title
             .as_deref()
-            .map(|t| t.chars().count() + 2 + 4)
+            .map(|t| display_width(t) + 2 + 4)
             .unwrap_or(0);
         let inner_width = self
             .width
@@ -94,7 +94,8 @@ impl Panel {
             let title_part = format!(" {} ", title);
             let dashes_needed = inner_width + 2;
             let left_dashes = 2;
-            let right_dashes = dashes_needed.saturating_sub(left_dashes + title_part.chars().count());
+            let right_dashes =
+                dashes_needed.saturating_sub(left_dashes + display_width(&title_part));
             buf.push_str(&format!(
                 "{}{}{}{}{}",
                 b("╭"),
@@ -115,7 +116,7 @@ impl Panel {
 
         let padding_str = " ".repeat(pad);
         for line in &lines {
-            let right_fill = inner_width.saturating_sub(line.chars().count());
+            let right_fill = inner_width.saturating_sub(display_width(line));
             buf.push_str(&format!(
                 "{}{}{}{}{}",
                 b("│"),
@@ -180,13 +181,13 @@ mod tests {
 
     #[test]
     fn non_ascii_lines_stay_aligned() {
-        // 회귀 테스트: 폭 계산이 바이트 길이 기준이면 한글이 포함된 줄의
-        // 우측 테두리(│)가 다른 줄과 다른 문자 위치에 오게 됨.
+        // 회귀 테스트: display_width 기준으로 패딩이 계산되어야
+        // 모든 줄의 우측 테두리(│)가 같은 표시폭 위치에 정렬됨.
         let out = Panel::new("한글 콘텐츠\nshort").render(false);
         let right_border_col: Vec<usize> = out
             .lines()
             .filter(|l| l.starts_with('│'))
-            .map(|l| l.chars().count() - 1)
+            .map(|l| crate::style::display_width(l) - 1)
             .collect();
         assert!(right_border_col.windows(2).all(|w| w[0] == w[1]));
     }

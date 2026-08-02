@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use indexmap::IndexMap;
+use std::collections::HashMap;
 
-use crate::error::{Result, WrCliError};
 use super::definition::Flag;
 use super::value::FlagValue;
+use crate::error::{Result, WrCliError};
 
 /// 단일 커맨드의 모든 플래그를 담는 컨테이너. 삽입 순서 보존 (help 출력용).
 #[derive(Debug, Default, Clone)]
@@ -11,11 +11,16 @@ pub struct FlagSet {
     flags: IndexMap<String, Flag>,
     short_map: HashMap<char, String>,
     values: HashMap<String, FlagValue>,
+    command_name: String,
 }
 
 impl FlagSet {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub(crate) fn set_command_name(&mut self, name: &str) {
+        self.command_name = name.to_owned();
     }
 
     /// 플래그 추가.
@@ -100,6 +105,13 @@ impl FlagSet {
         }
     }
 
+    pub fn get_int_vec(&self, name: &str) -> Option<&[i64]> {
+        match self.get(name)? {
+            FlagValue::IntVec(v) => Some(v.as_slice()),
+            _ => None,
+        }
+    }
+
     /// 삽입 순서대로 모든 플래그 반복 (help 출력용).
     pub fn flags_iter(&self) -> impl Iterator<Item = &Flag> {
         self.flags.values()
@@ -108,6 +120,11 @@ impl FlagSet {
     /// persistent 플래그만 반복 (하위 커맨드 전파용).
     pub fn persistent_flags(&self) -> impl Iterator<Item = &Flag> {
         self.flags.values().filter(|f| f.persistent)
+    }
+
+    /// 등록된 모든 플래그 이름 반복 (config → flag 시드용).
+    pub(crate) fn all_flag_names(&self) -> impl Iterator<Item = &String> {
+        self.flags.keys()
     }
 
     /// 사용자가 명시적으로 입력한 값만 반복 (기본값 제외).
@@ -119,6 +136,20 @@ impl FlagSet {
     /// 플래그 값이 사용자에 의해 명시적으로 설정되었는지 확인.
     pub fn is_set(&self, name: &str) -> bool {
         self.values.contains_key(name)
+    }
+
+    /// 명시적으로 설정되지 않은 플래그에 외부 값(설정 파일 등)을 시드.
+    ///
+    /// 값 타입은 플래그의 기본값 타입에 맞춰 변환한다.
+    pub(crate) fn seed_value(&mut self, name: &str, cv: crate::config::ConfigValue) {
+        if self.values.contains_key(name) {
+            return;
+        }
+        if let Some(flag) = self.flags.get(name)
+            && let Some(fv) = super::value::flag_value_from_config(&flag.default, cv)
+        {
+            self.values.insert(name.to_owned(), fv);
+        }
     }
 
     /// argv 토큰 파싱. 플래그 아닌 나머지 토큰을 위치 인자로 반환.
@@ -172,9 +203,12 @@ impl FlagSet {
         let flags = &self.flags;
         let values = &mut self.values;
 
-        let flag_ref = flags.get(name).ok_or_else(|| WrCliError::UnknownFlag {
-            flag: format!("--{}", name),
-            command: String::new(),
+        let flag_ref = flags.get(name).ok_or_else(|| {
+            log::warn!("unknown long flag '--{}' for '{}'", name, self.command_name);
+            WrCliError::UnknownFlag {
+                flag: format!("--{}", name),
+                command: self.command_name.clone(),
+            }
         })?;
 
         match &flag_ref.default {
@@ -188,7 +222,7 @@ impl FlagSet {
             FlagValue::StringVec(_) => {
                 let s = value_opt
                     .or_else(|| iter.next())
-                    .ok_or_else(|| WrCliError::MissingRequiredFlag(flag_ref.name.clone()))?;
+                    .ok_or_else(|| WrCliError::MissingFlagValue(flag_ref.name.clone()))?;
                 let entry = values
                     .entry(flag_ref.name.clone())
                     .or_insert(FlagValue::StringVec(vec![]));
@@ -200,7 +234,7 @@ impl FlagSet {
             FlagValue::IntVec(_) => {
                 let s = value_opt
                     .or_else(|| iter.next())
-                    .ok_or_else(|| WrCliError::MissingRequiredFlag(flag_ref.name.clone()))?;
+                    .ok_or_else(|| WrCliError::MissingFlagValue(flag_ref.name.clone()))?;
                 let n = s.parse::<i64>().map_err(|_| WrCliError::InvalidFlagValue {
                     flag: flag_ref.name.clone(),
                     expected: "integer",
@@ -217,7 +251,7 @@ impl FlagSet {
             _ => {
                 let s = value_opt
                     .or_else(|| iter.next())
-                    .ok_or_else(|| WrCliError::MissingRequiredFlag(flag_ref.name.clone()))?;
+                    .ok_or_else(|| WrCliError::MissingFlagValue(flag_ref.name.clone()))?;
                 let parsed = Self::coerce(flag_ref, &s)?;
                 values.insert(flag_ref.name.clone(), parsed);
             }
@@ -238,9 +272,12 @@ impl FlagSet {
         while let Some(c) = chars.next() {
             let is_last = chars.peek().is_none();
 
-            let flag_name = short_map.get(&c).ok_or_else(|| WrCliError::UnknownFlag {
-                flag: format!("-{}", c),
-                command: String::new(),
+            let flag_name = short_map.get(&c).ok_or_else(|| {
+                log::warn!("unknown short flag '-{}' for '{}'", c, self.command_name);
+                WrCliError::UnknownFlag {
+                    flag: format!("-{}", c),
+                    command: self.command_name.clone(),
+                }
             })?;
             let flag_ref = flags.get(flag_name.as_str()).unwrap();
 
@@ -248,9 +285,9 @@ impl FlagSet {
                 FlagValue::Bool(_) => FlagValue::Bool(true),
                 _ => {
                     if is_last {
-                        let s = iter.next().ok_or_else(|| {
-                            WrCliError::MissingRequiredFlag(flag_ref.name.clone())
-                        })?;
+                        let s = iter
+                            .next()
+                            .ok_or_else(|| WrCliError::MissingFlagValue(flag_ref.name.clone()))?;
                         Self::coerce(flag_ref, &s)?
                     } else {
                         return Err(WrCliError::InvalidFlagValue {
@@ -271,20 +308,24 @@ impl FlagSet {
     fn coerce(flag: &Flag, s: &str) -> Result<FlagValue> {
         match &flag.default {
             FlagValue::String(_) => Ok(FlagValue::String(s.to_owned())),
-            FlagValue::Int(_) => s.parse::<i64>().map(FlagValue::Int).map_err(|_| {
-                WrCliError::InvalidFlagValue {
-                    flag: flag.name.clone(),
-                    expected: "integer",
-                    got: s.to_owned(),
-                }
-            }),
-            FlagValue::Float(_) => s.parse::<f64>().map(FlagValue::Float).map_err(|_| {
-                WrCliError::InvalidFlagValue {
-                    flag: flag.name.clone(),
-                    expected: "float",
-                    got: s.to_owned(),
-                }
-            }),
+            FlagValue::Int(_) => {
+                s.parse::<i64>()
+                    .map(FlagValue::Int)
+                    .map_err(|_| WrCliError::InvalidFlagValue {
+                        flag: flag.name.clone(),
+                        expected: "integer",
+                        got: s.to_owned(),
+                    })
+            }
+            FlagValue::Float(_) => {
+                s.parse::<f64>()
+                    .map(FlagValue::Float)
+                    .map_err(|_| WrCliError::InvalidFlagValue {
+                        flag: flag.name.clone(),
+                        expected: "float",
+                        got: s.to_owned(),
+                    })
+            }
             FlagValue::Bool(_) => match s {
                 "true" | "1" | "yes" => Ok(FlagValue::Bool(true)),
                 "false" | "0" | "no" => Ok(FlagValue::Bool(false)),
@@ -294,7 +335,10 @@ impl FlagSet {
                     got: s.to_owned(),
                 }),
             },
-            _ => Ok(FlagValue::String(s.to_owned())),
+            FlagValue::StringVec(_) | FlagValue::IntVec(_) => {
+                // StringVec/IntVec는 parse_long에서 직접 처리되므로 여기 도달하면 버그
+                Ok(FlagValue::String(s.to_owned()))
+            }
         }
     }
 }

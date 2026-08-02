@@ -1,9 +1,9 @@
-use crate::config::Config;
-use crate::error::{Result, WrCliError};
-use crate::flag::{FlagSet, FlagValue};
 use super::command::{Command, RunFn};
 use super::context::CommandContext;
 use super::help;
+use crate::config::Config;
+use crate::error::{Result, WrCliError};
+use crate::flag::{FlagSet, FlagValue};
 
 /// 값을 요구하는(bool이 아닌) 플래그인지 여부.
 fn takes_value(default: &FlagValue) -> bool {
@@ -29,13 +29,19 @@ fn find_positional_candidate(args: &[String], flags: &FlagSet) -> Option<usize> 
                 None => rest,
             };
             let consumes_next = !rest.contains('=')
-                && flags.get_flag(name).map(|f| takes_value(&f.default)).unwrap_or(false);
+                && flags
+                    .get_flag(name)
+                    .map(|f| takes_value(&f.default))
+                    .unwrap_or(false);
             i += if consumes_next { 2 } else { 1 };
             continue;
         }
         if a.starts_with('-') && a.len() > 1 {
             let last = a[1..].chars().last().unwrap();
-            let consumes_next = flags.short_flag(last).map(|f| takes_value(&f.default)).unwrap_or(false);
+            let consumes_next = flags
+                .short_flag(last)
+                .map(|f| takes_value(&f.default))
+                .unwrap_or(false);
             i += if consumes_next { 2 } else { 1 };
             continue;
         }
@@ -57,7 +63,13 @@ impl Command {
         let mut pre_chain: Vec<RunFn> = Vec::new();
         let mut post_chain: Vec<RunFn> = Vec::new();
         let mut command_path: Vec<String> = Vec::new();
-        self.dispatch(args, &mut config, &mut pre_chain, &mut post_chain, &mut command_path)
+        self.dispatch(
+            args,
+            &mut config,
+            &mut pre_chain,
+            &mut post_chain,
+            &mut command_path,
+        )
     }
 
     pub(super) fn dispatch(
@@ -131,6 +143,7 @@ impl Command {
         if !self.subcommands.is_empty()
             && let Some(idx) = candidate
         {
+            log::warn!("unknown subcommand '{}' for '{}'", args[idx], self.name);
             return Err(WrCliError::UnknownSubcommand {
                 name: args[idx].clone(),
                 parent: self.name.clone(),
@@ -143,6 +156,14 @@ impl Command {
 
         if let Some(ref validator) = self.arg_validator {
             validator(&positional)?;
+        }
+
+        // 명시적으로 설정되지 않은 플래그는 설정 저장소의 값으로 시드 (config → flag).
+        let flag_names: Vec<String> = self.flags.all_flag_names().cloned().collect();
+        for name in &flag_names {
+            if let Some(cv) = config.get(name) {
+                self.flags.seed_value(name, cv);
+            }
         }
 
         // 사용자가 명시적으로 입력한 플래그만 Config 레이어 4로 바인딩

@@ -1,4 +1,5 @@
 pub mod args;
+pub mod completion;
 pub mod context;
 pub mod help;
 

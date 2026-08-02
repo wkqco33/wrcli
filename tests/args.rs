@@ -4,7 +4,9 @@ mod common;
 use common::args;
 
 use std::sync::{Arc, Mutex};
-use wrcli::args::{arbitrary_args, exact_args, maximum_n_args, minimum_n_args, no_args};
+use wrcli::args::{
+    arbitrary_args, exact_args, maximum_n_args, minimum_n_args, no_args, range_args, valid_args,
+};
 use wrcli::{Command, Flag, FlagValue, WrCliError};
 
 #[test]
@@ -111,4 +113,54 @@ fn arg_validator_arbitrary_args() {
         .on_run(|_| {})
         .execute_with(args("a b c d e"))
         .unwrap();
+}
+
+#[test]
+fn arg_validator_range_args_pass() {
+    Command::new("app")
+        .args(range_args(2, 4))
+        .on_run(|_| {})
+        .execute_with(args("a b"))
+        .unwrap();
+    Command::new("app")
+        .args(range_args(2, 4))
+        .on_run(|_| {})
+        .execute_with(args("a b c d"))
+        .unwrap();
+}
+
+#[test]
+fn arg_validator_range_args_fail() {
+    let err = Command::new("app")
+        .args(range_args(2, 4))
+        .on_run(|_| {})
+        .execute_with(args("a"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::ArgValidationFailed(_)));
+
+    let err = Command::new("app")
+        .args(range_args(2, 4))
+        .on_run(|_| {})
+        .execute_with(args("a b c d e"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::ArgValidationFailed(_)));
+}
+
+#[test]
+fn arg_validator_valid_args_pass() {
+    Command::new("app")
+        .args(valid_args(vec!["foo".to_owned(), "bar".to_owned()]))
+        .on_run(|_| {})
+        .execute_with(args("foo bar"))
+        .unwrap();
+}
+
+#[test]
+fn arg_validator_valid_args_fail() {
+    let err = Command::new("app")
+        .args(valid_args(vec!["foo".to_owned()]))
+        .on_run(|_| {})
+        .execute_with(args("baz"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::ArgValidationFailed(_)));
 }

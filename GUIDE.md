@@ -10,7 +10,10 @@
 - [포지셔널 인수 검증](#포지셔널-인수-검증)
 - [라이프사이클 훅](#라이프사이클-훅)
 - [설정(Config)](#설정config)
+- [설정 파일 자동 탐지](#설정-파일-자동-탐지)
+- [Config ↔ Flag 자동 바인딩](#config--flag-자동-바인딩)
 - [CommandContext](#commandcontext)
+- [Completion 스크립트 생성](#completion-스크립트-생성)
 - [에러 처리](#에러-처리)
 - [테스트 작성](#테스트-작성)
 - [피처 플래그](#피처-플래그)
@@ -320,6 +323,60 @@ url = "postgres://localhost/mydb"
 
 중첩 키에는 점 표기법으로 접근합니다: `config.get_string("server.host")`.
 
+### 설정 파일 자동 탐지
+
+`config_type`을 지정하지 않으면 **모든 지원 형식**(TOML, JSON, YAML)을 순서대로
+시도합니다. 또 검색 경로를 직접 지정하지 않아도 표준 위치를 자동으로 탐지합니다.
+
+**검색 순서** (Viper 스타일):
+
+```text
+1. add_config_path로 추가한 경로 (지정한 경우)
+2. $XDG_CONFIG_HOME/<name>  또는  ~/.config/<name>
+3. ~/.<name>
+4. 현재 디렉토리 (.)
+```
+
+```rust
+let mut config = Config::new()
+    .set_config_name("myapp");   // 타입 미지정 → 자동 판별, 경로 미지정 → 자동 탐지
+
+config.read_in_config().ok();    // ~/.config/myapp/{toml,json,yaml} 등에서 검색
+```
+
+**단일 파일 직접 지정** — `set_config_file`:
+
+```rust
+let mut config = Config::new()
+    .set_config_file("~/.config/myapp/custom.toml");   // 확장자에서 포맷 자동 판별
+
+config.read_in_config()?;
+```
+
+`set_config_file`은 설정 이름/타입/검색 경로와 무관하게 그 경로에서 바로 로드합니다.
+
+### Config ↔ Flag 자동 바인딩
+
+명시적으로 설정되지 않은 플래그는 **설정 저장소의 값으로 자동 시드**됩니다.
+즉, 설정 파일/환경변수/기본값에서 값을 찾아 플래그에 주입하므로
+`ctx.flags.get_*()`와 `ctx.get_*()`가 일관된 값을 반환합니다.
+
+```rust
+// 설정에 server.port = 9000 이 있는 경우
+Command::new("app")
+    .flag(Flag::new("port", FlagValue::Int(0), "port"))
+    .with_config(config)              // 설정 로드 완료 상태
+    .on_run(|ctx| {
+        // 플래그를 명시적으로 안 줬다면 9000이 들어옴
+        let port = ctx.flags.get_int("port").unwrap();
+    })
+    .execute_with(vec![])             // "--port 5000" 같은 명시적 입력은 우선
+    .unwrap();
+```
+
+**우선순위**: 명시적 CLI 플래그 > 설정(파일/환경변수/기본값). 플래그가 타입이
+맞지 않는 설정값과 충돌하면 설정값은 무시됩니다.
+
 ### 환경 변수
 
 ```rust
@@ -391,6 +448,29 @@ ctx.config.get_string_vec("allowed.ips")  // Option<Vec<String>>
 
 ---
 
+## Completion 스크립트 생성
+
+`Command::gen_completion(shell)`로 bash / zsh / fish용 자동완성 스크립트를
+생성합니다. 서브커맨드와 플래그를 재귀적으로 수집합니다.
+
+```rust
+let bash_script = Command::new("myapp")
+    .subcommand(Command::new("serve"))
+    .gen_completion("bash")
+    .unwrap();
+
+std::fs::write("myapp.bash", bash_script)?;
+```
+
+지원 셸: `"bash"`, `"zsh"`, `"fish"`. 그 외 셸은
+`WrCliError::UnsupportedCompletionShell`을 반환합니다.
+
+```bash
+$ myapp gen-completion bash > /etc/bash_completion.d/myapp
+```
+
+---
+
 ## 에러 처리
 
 `.execute()`는 `Result<(), WrCliError>`를 반환합니다.
@@ -406,6 +486,7 @@ ctx.config.get_string_vec("allowed.ips")  // Option<Vec<String>>
 | `ConfigFileNotFound` | 설정 파일을 찾을 수 없음 |
 | `ConfigParseError` | 설정 파일 파싱 실패 |
 | `UserError` | `on_run_e`에서 반환한 에러 |
+| `UnsupportedCompletionShell` | 지원하지 않는 셸로 completion 생성 |
 
 권장 패턴:
 
@@ -496,7 +577,7 @@ fn unknown_flag_fails() {
 | ---- | :---------: | ---- |
 | `toml-config` | ✅ | TOML 설정 파일 지원 |
 | `json-config` | ✅ | JSON 설정 파일 지원 |
-| `yaml-config` | ❌ | YAML 설정 파일 지원 (`serde_yml`) |
+| `yaml-config` | ❌ | YAML 설정 파일 지원 (`noyalib`) |
 
 ```toml
 # 모든 형식 활성화
@@ -505,3 +586,7 @@ wrcli = { version = "0.1", features = ["yaml-config"] }
 # 최소 빌드 (설정 파일 지원 없음)
 wrcli = { version = "0.1", default-features = false }
 ```
+
+스타일(`Style`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress` 등)은
+기본으로 제공되며 별도 피처가 필요 없습니다. 사용법은
+[STYLE.md](STYLE.md)를 참고하세요.

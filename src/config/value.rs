@@ -12,19 +12,43 @@ pub enum ConfigValue {
 
 impl ConfigValue {
     pub fn as_bool(&self) -> Option<bool> {
-        if let ConfigValue::Bool(v) = self { Some(*v) } else { None }
+        if let ConfigValue::Bool(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
     }
 
     pub fn as_int(&self) -> Option<i64> {
-        if let ConfigValue::Int(v) = self { Some(*v) } else { None }
+        if let ConfigValue::Int(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
     }
 
     pub fn as_float(&self) -> Option<f64> {
-        if let ConfigValue::Float(v) = self { Some(*v) } else { None }
+        if let ConfigValue::Float(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
     }
 
     pub fn as_str(&self) -> Option<&str> {
-        if let ConfigValue::String(v) = self { Some(v) } else { None }
+        if let ConfigValue::String(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&[ConfigValue]> {
+        if let ConfigValue::Array(v) = self {
+            Some(v)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn to_string_coerce(&self) -> Option<String> {
@@ -72,31 +96,49 @@ impl ConfigValue {
 // ── From impls ────────────────────────────────────────────────────────────────
 
 impl From<bool> for ConfigValue {
-    fn from(v: bool) -> Self { ConfigValue::Bool(v) }
+    fn from(v: bool) -> Self {
+        ConfigValue::Bool(v)
+    }
 }
 impl From<i64> for ConfigValue {
-    fn from(v: i64) -> Self { ConfigValue::Int(v) }
+    fn from(v: i64) -> Self {
+        ConfigValue::Int(v)
+    }
 }
 impl From<i32> for ConfigValue {
-    fn from(v: i32) -> Self { ConfigValue::Int(v as i64) }
+    fn from(v: i32) -> Self {
+        ConfigValue::Int(v as i64)
+    }
 }
 impl From<u32> for ConfigValue {
-    fn from(v: u32) -> Self { ConfigValue::Int(v as i64) }
+    fn from(v: u32) -> Self {
+        ConfigValue::Int(v as i64)
+    }
 }
 impl From<usize> for ConfigValue {
-    fn from(v: usize) -> Self { ConfigValue::Int(v as i64) }
+    fn from(v: usize) -> Self {
+        ConfigValue::Int(v as i64)
+    }
 }
 impl From<f64> for ConfigValue {
-    fn from(v: f64) -> Self { ConfigValue::Float(v) }
+    fn from(v: f64) -> Self {
+        ConfigValue::Float(v)
+    }
 }
 impl From<f32> for ConfigValue {
-    fn from(v: f32) -> Self { ConfigValue::Float(v as f64) }
+    fn from(v: f32) -> Self {
+        ConfigValue::Float(v as f64)
+    }
 }
 impl From<String> for ConfigValue {
-    fn from(v: String) -> Self { ConfigValue::String(v) }
+    fn from(v: String) -> Self {
+        ConfigValue::String(v)
+    }
 }
 impl From<&str> for ConfigValue {
-    fn from(v: &str) -> Self { ConfigValue::String(v.to_owned()) }
+    fn from(v: &str) -> Self {
+        ConfigValue::String(v.to_owned())
+    }
 }
 
 /// 파싱된 `FlagValue`를 레이어 4 바인딩용 `ConfigValue`로 변환.

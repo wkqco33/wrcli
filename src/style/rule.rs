@@ -1,4 +1,4 @@
-use super::{Style, Color, stdout_is_styled};
+use super::{Color, Style, display_width, stdout_is_styled};
 
 /// 선택적으로 중앙 제목이 있는 수평 구분선.
 ///
@@ -70,7 +70,7 @@ impl Rule {
         let ch = self.line_char.to_string();
         if let Some(ref title) = self.title {
             let title_part = format!(" {} ", title);
-            let remaining = self.width.saturating_sub(title_part.len());
+            let remaining = self.width.saturating_sub(display_width(&title_part));
             let left = remaining / 2;
             let right = remaining - left;
             format!(
