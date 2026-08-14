@@ -2,7 +2,7 @@
 name = "wrcli"
 version = "0.1.0"
 edition = "2024"
-description = "A cobra/viper-inspired CLI framework library for Rust"
+description = "A Rust CLI framework inspired by Cobra and Viper, with typed flags, nested commands, layered configuration, shell completion, and terminal styling"
 
 [features]
 default     = ["toml-config", "json-config"]
