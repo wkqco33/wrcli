@@ -312,7 +312,15 @@ fn config_auto_discovery_default_paths() {
     let mut f = std::fs::File::create(cfg_dir.join("myapp.json")).unwrap();
     writeln!(f, r#"{{"host": "auto.example.com"}}"#).unwrap();
 
-    let _g = EnvGuard::set("HOME", home.path().to_str().unwrap());
+    // XDG_CONFIG_HOME까지 임시 경로로 고정해야 외부 CI 환경(기본 XDG 설정)과
+    // 무관하게 `~/.config/<name>` 탐지를 결정적으로 검증할 수 있다.
+    let _g = EnvGuard::set_many(&[
+        ("HOME", home.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            home.path().join(".config").to_str().unwrap(),
+        ),
+    ]);
 
     let val = Arc::new(Mutex::new(String::new()));
     let val2 = val.clone();

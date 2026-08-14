@@ -8,8 +8,7 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 /// RAII guard: 생성 시 env 변수를 설정하고, Drop 시 원래 값으로 복원.
 pub struct EnvGuard {
     _lock: std::sync::MutexGuard<'static, ()>,
-    key: String,
-    prev: Option<std::ffi::OsString>,
+    entries: Vec<(String, Option<std::ffi::OsString>)>,
 }
 
 impl EnvGuard {
@@ -22,16 +21,27 @@ impl EnvGuard {
     /// // _g drop 시 env 변수 자동 제거
     /// ```
     pub fn set(key: &str, val: &str) -> Self {
+        Self::set_many(&[(key, val)])
+    }
+
+    /// 여러 env 변수를 단일 lock으로 설정하고 Drop 시 자동 복원되는 Guard 반환.
+    ///
+    /// env 변수에 의존하는 테스트는 서로 다른 변수를 설정하더라도 반드시
+    /// 한 Guard에서 함께 설정해야 데드락 없이 병렬 안전하다.
+    pub fn set_many(entries: &[(&str, &str)]) -> Self {
         let lock = ENV_LOCK.lock().unwrap();
-        let prev = std::env::var_os(key);
-        // SAFETY: ENV_LOCK으로 직렬화되어 동시 접근 없음
-        unsafe {
-            std::env::set_var(key, val);
+        let mut restored = Vec::with_capacity(entries.len());
+        for (key, val) in entries {
+            let prev = std::env::var_os(key);
+            // SAFETY: ENV_LOCK으로 직렬화되어 동시 접근 없음
+            unsafe {
+                std::env::set_var(key, val);
+            }
+            restored.push((key.to_string(), prev));
         }
         EnvGuard {
             _lock: lock,
-            key: key.to_owned(),
-            prev,
+            entries: restored,
         }
     }
 }
@@ -39,13 +49,15 @@ impl EnvGuard {
 impl Drop for EnvGuard {
     fn drop(&mut self) {
         // SAFETY: ENV_LOCK으로 직렬화되어 동시 접근 없음
-        match &self.prev {
-            Some(v) => unsafe {
-                std::env::set_var(&self.key, v);
-            },
-            None => unsafe {
-                std::env::remove_var(&self.key);
-            },
+        for (key, prev) in &self.entries {
+            match prev {
+                Some(v) => unsafe {
+                    std::env::set_var(key, v);
+                },
+                None => unsafe {
+                    std::env::remove_var(key);
+                },
+            }
         }
     }
 }
