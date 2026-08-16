@@ -3,6 +3,14 @@ name = "wrcli"
 version = "0.1.0"
 edition = "2024"
 description = "A Rust CLI framework inspired by Cobra and Viper, with typed flags, nested commands, layered configuration, shell completion, and terminal styling"
+license = "MIT"
+repository = "https://github.com/wkqco33/wrcli"
+homepage = "https://github.com/wkqco33/wrcli"
+documentation = "https://docs.rs/wrcli"
+readme = "README.md"
+keywords = ["cli", "cobra", "viper", "flag", "config"]
+categories = ["command-line-interface", "config"]
+exclude = ["AGENTS.md", "CLAUDE.md", ".github"]
 
 [features]
 default     = ["toml-config", "json-config"]

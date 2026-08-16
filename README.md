@@ -1,5 +1,10 @@
 # wrcli
 
+[![CI](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml/badge.svg)](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/wrcli.svg)](https://crates.io/crates/wrcli)
+[![Documentation](https://docs.rs/wrcli/badge.svg)](https://docs.rs/wrcli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13/viper)에서 영감을 받은 Rust CLI 프레임워크 라이브러리.  
 트리 구조의 서브커맨드, 타입 안전 플래그, 다중 소스 설정을 플루언트 빌더 API로 조합할 수 있습니다.
 
@@ -111,4 +116,4 @@ cargo run --example styled
 
 ## 라이선스
 
-MIT
+[MIT](LICENSE)

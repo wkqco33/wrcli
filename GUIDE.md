@@ -37,11 +37,11 @@ wrcli = { version = "0.1", default-features = false }
 
 ```toml
 # SSH (권장)
-wrcli = { git = "git@github.com:your-org/wrcli.git" }
+wrcli = { git = "git@github.com:wkqco33/wrcli.git" }
 
 # 브랜치 / 태그 / 커밋 고정
-wrcli = { git = "git@github.com:your-org/wrcli.git", tag = "v0.2.0" }
-wrcli = { git = "git@github.com:your-org/wrcli.git", rev = "a1b2c3d" }
+wrcli = { git = "git@github.com:wkqco33/wrcli.git", tag = "v0.2.0" }
+wrcli = { git = "git@github.com:wkqco33/wrcli.git", rev = "a1b2c3d" }
 
 # 로컬 경로 (모노레포 / 개발 중)
 wrcli = { path = "../wrcli" }

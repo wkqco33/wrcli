@@ -51,7 +51,7 @@ fn find_positional_candidate(args: &[String], flags: &FlagSet) -> Option<usize> 
 }
 
 impl Command {
-    /// 진입점: `std::env::args()`(argv[0] 제외)를 파싱하고 실행.
+    /// 진입점: `std::env::args()`(`argv[0]` 제외)를 파싱하고 실행.
     pub fn execute(self) -> Result<()> {
         let args: Vec<String> = std::env::args().skip(1).collect();
         self.execute_with(args)

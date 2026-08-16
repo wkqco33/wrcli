@@ -1,10 +1,12 @@
 //! Minimal binary used exclusively by `tests/binary.rs` (assert_cmd integration tests).
 //!
 //! Commands:
-//!   testapp greet <name> [--upper] [--count N]
-//!   testapp echo [args...]
-//!   testapp fail [--code N]
-//!   testapp tags [--tag <value>...] (StringVec flag demo)
+//! ```text
+//! testapp greet <name> [--upper] [--count N]
+//! testapp echo [args...]
+//! testapp fail [--code N]
+//! testapp tags [--tag <value>...] (StringVec flag demo)
+//! ```
 
 use wrcli::args::{arbitrary_args, minimum_n_args};
 use wrcli::{Command, Flag, FlagValue, WrCliError};
