@@ -1,6 +1,10 @@
 # wrcli
 
 [![CI](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml/badge.svg)](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml)
+
+Releases are published to crates.io automatically when a matching version tag
+is pushed (for example, `v0.1.0`). Configure the repository secret
+`CARGO_REGISTRY_TOKEN` with a crates.io API token before creating a release tag.
 [![Crates.io](https://img.shields.io/crates/v/wrcli.svg)](https://crates.io/crates/wrcli)
 [![Documentation](https://docs.rs/wrcli/badge.svg)](https://docs.rs/wrcli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
