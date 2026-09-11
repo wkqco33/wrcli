@@ -1,6 +1,6 @@
 use crate::command::Command;
 use crate::flag::{Flag, FlagSet, FlagValue};
-use crate::style::{Color, Style, stdout_is_styled};
+use crate::style::{Color, Style, display_width, stdout_is_styled};
 
 /// Collects the set of styles used when rendering help text.
 struct HelpStyles {
@@ -64,7 +64,7 @@ pub fn print_help(
     if !subcommands.is_empty() {
         println!();
         println!("{}", s.section.apply("Available Commands:", s.styled));
-        let col = subcommands.iter().map(|c| c.name.len()).max().unwrap_or(0);
+        let col = subcommand_col_width(subcommands);
         for cmd in subcommands {
             let aliases = if cmd.aliases.is_empty() {
                 String::new()
@@ -72,11 +72,10 @@ pub fn print_help(
                 format!(" ({})", cmd.aliases.join(", "))
             };
             println!(
-                "  {:<width$}   {}{}",
-                s.cmd_name.apply(&cmd.name, s.styled),
+                "  {}   {}{}",
+                s.cmd_name.apply(&pad_display(&cmd.name, col), s.styled),
                 cmd.short,
                 s.meta.apply(&aliases, s.styled),
-                width = col
             );
         }
     }
@@ -91,8 +90,8 @@ pub fn print_help(
             .map(|f| flag_lhs_len(f, has_any_short))
             .max()
             .unwrap_or(0);
-        let help_lhs = short_prefix_len(true, has_any_short) + "--help".len();
-        let ver_lhs = short_prefix_len(implicit_has_version, has_any_short) + "--version".len();
+        let help_lhs = short_prefix_len(has_any_short) + "--help".len();
+        let ver_lhs = short_prefix_len(has_any_short) + "--version".len();
         user_max.max(help_lhs).max(ver_lhs)
     };
 
@@ -143,24 +142,31 @@ pub fn print_help(
 
 // ── Rendering helpers ─────────────────────────────────────────────────────────
 
+fn subcommand_col_width(subcommands: &[Command]) -> usize {
+    subcommands
+        .iter()
+        .map(|c| display_width(&c.name))
+        .max()
+        .unwrap_or(0)
+}
+
+/// Right-pad `s` with spaces to `width` terminal columns.
+fn pad_display(s: &str, width: usize) -> String {
+    let mut out = String::with_capacity(s.len() + width);
+    out.push_str(s);
+    out.push_str(&" ".repeat(width.saturating_sub(display_width(s))));
+    out
+}
+
 fn flag_lhs_len(flag: &Flag, has_any_short: bool) -> usize {
-    short_prefix_len(flag.short.is_some(), has_any_short)
+    short_prefix_len(has_any_short)
         + "--".len()
-        + flag.name.len()
+        + display_width(&flag.name)
         + type_hint_len(&flag.default)
 }
 
-// has_short 분기는 값은 같지만("-x, "와 패딩 " " 모두 폭 4) 두 케이스의 의미가
-// 다름을 문서화하기 위해 유지.
-#[allow(clippy::if_same_then_else)]
-fn short_prefix_len(has_short: bool, has_any_short: bool) -> usize {
-    if !has_any_short {
-        0
-    } else if has_short {
-        4 // "-x, "
-    } else {
-        4 // "    " (padding to align)
-    }
+fn short_prefix_len(has_any_short: bool) -> usize {
+    if has_any_short { 4 } else { 0 }
 }
 
 fn type_hint_len(val: &FlagValue) -> usize {
@@ -192,10 +198,9 @@ fn print_flag_row(flag: &Flag, has_any_short: bool, col_width: usize, s: &HelpSt
 
     let rhs = build_flag_rhs(flag, s);
     println!(
-        "  {:<width$}   {}",
-        s.flag_name.apply(&lhs, s.styled),
+        "  {}   {}",
+        s.flag_name.apply(&pad_display(&lhs, col_width), s.styled),
         rhs,
-        width = col_width,
     );
 }
 
@@ -218,10 +223,9 @@ fn print_implicit_flag(
     lhs.push_str(name);
     lhs.push_str(type_hint);
     println!(
-        "  {:<width$}   {}",
-        s.flag_name.apply(&lhs, s.styled),
+        "  {}   {}",
+        s.flag_name.apply(&pad_display(&lhs, col_width), s.styled),
         usage,
-        width = col_width,
     );
 }
 
@@ -266,15 +270,20 @@ fn word_wrap(text: &str, max_width: usize) -> Vec<String> {
             continue;
         }
         let mut current = String::new();
+        let mut current_width = 0usize;
         for word in paragraph.split_whitespace() {
+            let word_width = display_width(word);
             if current.is_empty() {
                 current.push_str(word);
-            } else if current.len() + 1 + word.len() <= max_width {
+                current_width = word_width;
+            } else if current_width + 1 + word_width <= max_width {
                 current.push(' ');
                 current.push_str(word);
+                current_width += 1 + word_width;
             } else {
-                lines.push(current);
-                current = word.to_owned();
+                lines.push(std::mem::take(&mut current));
+                current.push_str(word);
+                current_width = word_width;
             }
         }
         if !current.is_empty() {
@@ -282,4 +291,26 @@ fn word_wrap(text: &str, max_width: usize) -> Vec<String> {
         }
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn word_wrap_uses_display_width_for_cjk() {
+        assert_eq!(word_wrap("가나 다라 마바", 10), vec!["가나 다라", "마바"]);
+    }
+
+    #[test]
+    fn subcommand_column_width_uses_display_width() {
+        let cmds = vec![Command::new("가나"), Command::new("abcd")];
+        assert_eq!(subcommand_col_width(&cmds), 4);
+    }
+
+    #[test]
+    fn pad_display_pads_by_display_width() {
+        assert_eq!(pad_display("가나", 6), "가나  ");
+        assert_eq!(pad_display("abcd", 4), "abcd");
+    }
 }

@@ -2,6 +2,7 @@
 
 use super::Command;
 use crate::error::Result;
+use crate::flag::Flag;
 
 /// Recursively collect subcommand names reachable from `cmd`.
 fn collect_commands(cmd: &Command, out: &mut Vec<String>) {
@@ -11,25 +12,31 @@ fn collect_commands(cmd: &Command, out: &mut Vec<String>) {
     }
 }
 
-/// Collect flag names (with optional short forms) for a command and all its subcommands.
-fn collect_flags(cmd: &Command, out: &mut Vec<String>) {
+/// Collect flags for a command and all its subcommands, deduplicated by name.
+fn collect_flags<'a>(cmd: &'a Command, out: &mut Vec<&'a Flag>) {
     for flag in cmd.flags.flags_iter() {
-        if let Some(short) = flag.short {
-            out.push(format!("-{}", short));
+        if !out.iter().any(|f| f.name == flag.name) {
+            out.push(flag);
         }
-        out.push(format!("--{}", flag.name));
     }
     for sub in &cmd.subcommands {
         collect_flags(sub, out);
     }
 }
 
+/// Escape a description for single-quoted shell literals.
+fn quote(s: &str) -> String {
+    s.replace('\'', "\\'")
+}
+
 fn shell_bash(cmd: &Command, out: &mut String) {
-    out.push_str(&format!(
-        "#!/usr/bin/env bash\n# bash completion for {}\n\n",
-        cmd.name
-    ));
-    out.push_str(&format!("_{}() {{\n", cmd.name));
+    use std::fmt::Write as _;
+
+    let _ = write!(
+        out,
+        "#!/usr/bin/env bash\n# bash completion for {name}\n\n_{name}() {{\n",
+        name = cmd.name
+    );
     out.push_str("  local cur prev words cword\n");
     out.push_str("  COMPREPLY=()\n");
     out.push_str("  cur=\"${COMP_WORDS[COMP_CWORD]}\"\n\n");
@@ -45,69 +52,92 @@ fn shell_bash(cmd: &Command, out: &mut String) {
         out.push_str("  fi\n");
     }
 
-    let mut flags = Vec::new();
+    let mut flags: Vec<&Flag> = Vec::new();
     collect_flags(cmd, &mut flags);
+    let words: Vec<String> = flags
+        .iter()
+        .flat_map(|f| {
+            f.short
+                .map(|c| vec![format!("-{}", c), format!("--{}", f.name)])
+                .unwrap_or_else(|| vec![format!("--{}", f.name)])
+        })
+        .collect();
     out.push_str("  COMPREPLY=( $(compgen -W \"");
-    out.push_str(&flags.join(" "));
+    out.push_str(&words.join(" "));
     out.push_str("\" -- \"$cur\") )\n");
     out.push_str("  return 0\n");
     out.push_str("}\n");
-    out.push_str(&format!("complete -F _{} {} \"\n", cmd.name, cmd.name));
+    let _ = writeln!(out, "complete -F _{name} {name}", name = cmd.name);
 }
 
 fn shell_zsh(cmd: &Command, out: &mut String) {
-    out.push_str(&format!(
-        "#compdef {}\n# zsh completion for {}\n\n",
-        cmd.name, cmd.name
-    ));
-    out.push_str(&format!("#compdef {}\n", cmd.name));
-    out.push_str("_arguments \\\n");
+    use std::fmt::Write as _;
+
+    let _ = write!(
+        out,
+        "#compdef {name}\n# zsh completion for {name}\n\n_arguments \\\n",
+        name = cmd.name
+    );
 
     let mut commands = Vec::new();
     collect_commands(cmd, &mut commands);
-    for name in &commands {
-        out.push_str(&format!("  '{}: :{}'\n", name, name));
-    }
-    for flag in cmd.flags.flags_iter() {
-        if let Some(short) = flag.short {
-            out.push_str(&format!(
-                "  '-{}[{}]' '--{}[{}]'\n",
-                short, flag.usage, flag.name, flag.usage
-            ));
-        } else {
-            out.push_str(&format!("  '--{}[{}]'\n", flag.name, flag.usage));
+    let mut flags: Vec<&Flag> = Vec::new();
+    collect_flags(cmd, &mut flags);
+
+    let mut specs: Vec<String> = commands
+        .iter()
+        .map(|name| format!("'{}: :{}'", name, name))
+        .collect();
+    for flag in flags {
+        let usage = quote(&flag.usage);
+        match flag.short {
+            Some(short) => specs.push(format!("'-{}[{}]'", short, usage)),
+            None => specs.push(format!("'--{}[{}]'", flag.name, usage)),
+        }
+        if flag.short.is_some() {
+            specs.push(format!("'--{}[{}]'", flag.name, usage));
         }
     }
-    out.push_str("  '--help[Show help]'\n");
+    specs.push("'--help[Show help]'".to_owned());
+
+    let last = specs.len() - 1;
+    for (i, spec) in specs.iter().enumerate() {
+        if i == last {
+            let _ = writeln!(out, "  {}", spec);
+        } else {
+            let _ = writeln!(out, "  {} \\", spec);
+        }
+    }
 }
 
 fn shell_fish(cmd: &Command, out: &mut String) {
-    out.push_str(&format!("# fish completion for {}\n\n", cmd.name));
+    use std::fmt::Write as _;
+
+    let _ = write!(out, "# fish completion for {}\n\n", cmd.name);
 
     let mut commands = Vec::new();
     collect_commands(cmd, &mut commands);
     for name in &commands {
-        out.push_str(&format!(
-            "complete -c {} -n '__fish_use_subcommand' -a {} -d 'subcommand'\n",
+        let _ = writeln!(
+            out,
+            "complete -c {} -n '__fish_use_subcommand' -a {} -d 'subcommand'",
             cmd.name, name
-        ));
+        );
     }
 
-    for flag in cmd.flags.flags_iter() {
-        let mut names = format!("--{}", flag.name);
-        if let Some(short) = flag.short {
-            names = format!("-{} {}", short, names);
-        }
-        let _ = &names;
-        out.push_str(&format!(
-            "complete -c {} -f -l {} -d '{}'\n",
-            cmd.name, flag.name, flag.usage
-        ));
+    let mut flags: Vec<&Flag> = Vec::new();
+    collect_flags(cmd, &mut flags);
+    for flag in flags {
+        let short = flag.short.map(|c| format!("-s {} ", c)).unwrap_or_default();
+        let _ = writeln!(
+            out,
+            "complete -c {name} -f {short}-l {flag} -d '{usage}'",
+            name = cmd.name,
+            flag = flag.name,
+            usage = quote(&flag.usage),
+        );
     }
-    out.push_str(&format!(
-        "complete -c {} -l help -d 'Show help'\n",
-        cmd.name
-    ));
+    let _ = writeln!(out, "complete -c {} -l help -d 'Show help'", cmd.name);
 }
 
 impl Command {

@@ -92,8 +92,8 @@ impl Panel {
 
         if let Some(ref title) = self.title {
             let title_part = format!(" {} ", title);
-            let dashes_needed = inner_width + 2;
-            let left_dashes = 2;
+            let dashes_needed = inner_width + pad * 2;
+            let left_dashes = pad + 1;
             let right_dashes =
                 dashes_needed.saturating_sub(left_dashes + display_width(&title_part));
             buf.push_str(&format!(
@@ -180,9 +180,18 @@ mod tests {
     }
 
     #[test]
+    fn title_border_matches_content_width_with_padding() {
+        let out = Panel::new("body").title("T").padding(2).render(false);
+        let widths: Vec<usize> = out.lines().map(display_width).collect();
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "misaligned lines: {widths:?}"
+        );
+    }
+
+    #[test]
     fn non_ascii_lines_stay_aligned() {
-        // 회귀 테스트: display_width 기준으로 패딩이 계산되어야
-        // 모든 줄의 우측 테두리(│)가 같은 표시폭 위치에 정렬됨.
+        // display_width 기준으로 모든 줄의 우측 테두리(│)가 정렬되어야 함.
         let out = Panel::new("한글 콘텐츠\nshort").render(false);
         let right_border_col: Vec<usize> = out
             .lines()
