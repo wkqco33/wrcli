@@ -36,13 +36,13 @@
 
 ```toml
 [dependencies]
-wrcli = "0.1"
+wrcli = "0.2"
 
 # YAML도 필요한 경우
-wrcli = { version = "0.1", features = ["yaml-config"] }
+wrcli = { version = "0.2", features = ["yaml-config"] }
 
 # 설정 파일 지원 없이 최소 빌드
-wrcli = { version = "0.1", default-features = false }
+wrcli = { version = "0.2", default-features = false }
 ```
 
 ### Git 저장소 직접 참조
@@ -714,10 +714,10 @@ fn unknown_flag_fails() {
 
 ```toml
 # 모든 형식 활성화
-wrcli = { version = "0.1", features = ["yaml-config", "ini-config", "dotenv-config", "properties-config"] }
+wrcli = { version = "0.2", features = ["yaml-config", "ini-config", "dotenv-config", "properties-config"] }
 
 # 최소 빌드 (설정 파일 지원 없음)
-wrcli = { version = "0.1", default-features = false }
+wrcli = { version = "0.2", default-features = false }
 ```
 
 스타일(`Style`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress` 등)은
