@@ -1,8 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use super::parser::parse_config_content;
+use super::settings::{SettingsMap, build_settings};
 use super::value::ConfigValue;
 use crate::error::{Result, WrCliError};
 
@@ -474,6 +476,161 @@ impl Config {
             Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
                 v.to_size_in_bytes_coerce()
             }
+        }
+    }
+
+    // ── 열거 & 하위 트리 ───────────────────────────────────────────────────────
+
+    /// 모든 레이어의 키를 정렬해서 반환 (Viper의 `AllKeys`).
+    pub fn all_keys(&self) -> Vec<String> {
+        let mut keys: BTreeSet<String> = BTreeSet::new();
+        keys.extend(self.defaults.keys().cloned());
+        keys.extend(self.file_values.keys().cloned());
+        keys.extend(self.flag_values.keys().cloned());
+        keys.extend(self.explicit_values.keys().cloned());
+        keys.extend(self.explicit_env_bindings.keys().cloned());
+        keys.into_iter().collect()
+    }
+
+    /// 모든 레이어를 병합한 중첩 설정 트리 (Viper의 `AllSettings`).
+    ///
+    /// 자동 env 레이어는 키를 열거할 수 없으므로 포함되지 않는다.
+    pub fn all_settings(&self) -> SettingsMap {
+        build_settings(
+            self.all_keys()
+                .into_iter()
+                .filter_map(|k| self.get(&k).map(|v| (k, v))),
+        )
+    }
+
+    /// `key` 바로 아래(하위 트리)의 상대 키 → 값 목록.
+    fn subtree(&self, key: &str) -> Vec<(String, ConfigValue)> {
+        let prefix = format!("{}.", self.canonical_key(key));
+        self.all_keys()
+            .into_iter()
+            .filter_map(|k| {
+                k.strip_prefix(&prefix)
+                    .and_then(|rest| self.get(&k).map(|v| (rest.to_owned(), v)))
+            })
+            .collect()
+    }
+
+    /// `key` 하위 값을 중첩 트리로 반환 (Viper의 `GetStringMap`).
+    pub fn get_string_map(&self, key: &str) -> Option<SettingsMap> {
+        let entries = self.subtree(key);
+        (!entries.is_empty()).then(|| build_settings(entries))
+    }
+
+    /// `key` 하위 값을 `String` 맵으로 반환 (Viper의 `GetStringMapString`).
+    pub fn get_string_map_string(&self, key: &str) -> Option<BTreeMap<String, String>> {
+        let entries = self.subtree(key);
+        if entries.is_empty() {
+            return None;
+        }
+        Some(
+            entries
+                .into_iter()
+                .filter_map(|(k, v)| v.to_string_coerce().map(|s| (k, s)))
+                .collect(),
+        )
+    }
+
+    /// `key` 하위 배열 값을 `Vec<String>` 맵으로 반환 (Viper의 `GetStringMapStringSlice`).
+    pub fn get_string_map_string_slice(&self, key: &str) -> Option<BTreeMap<String, Vec<String>>> {
+        let entries = self.subtree(key);
+        if entries.is_empty() {
+            return None;
+        }
+        Some(
+            entries
+                .into_iter()
+                .filter_map(|(k, v)| {
+                    v.as_array()
+                        .map(|arr| (k, arr.iter().filter_map(|x| x.to_string_coerce()).collect()))
+                })
+                .collect(),
+        )
+    }
+
+    /// `key` 하위 트리만 담은 새 `Config` 반환 (Viper의 `Sub`).
+    ///
+    /// 저장된 레이어와 env 설정을 복사한다. 자동 env 조회는 상대 키 기준이므로
+    /// 원본과 env 변수명이 달라질 수 있다.
+    pub fn sub(&self, key: &str) -> Config {
+        let prefix = format!("{}.", self.canonical_key(key));
+        let strip = |k: &str| k.strip_prefix(&prefix).map(str::to_owned);
+        let collect = |layer: &HashMap<String, ConfigValue>| {
+            layer
+                .iter()
+                .filter_map(|(k, v)| strip(k).map(|k| (k, v.clone())))
+                .collect::<HashMap<_, _>>()
+        };
+        Config {
+            auto_env: self.auto_env,
+            allow_empty_env: self.allow_empty_env,
+            env_prefix: self.env_prefix.clone(),
+            env_prefix_upper: self.env_prefix_upper.clone(),
+            env_key_replacer: self.env_key_replacer.clone(),
+            key_delim: self.key_delim,
+            defaults: collect(&self.defaults),
+            file_values: collect(&self.file_values),
+            flag_values: collect(&self.flag_values),
+            explicit_values: collect(&self.explicit_values),
+            explicit_env_bindings: self
+                .explicit_env_bindings
+                .iter()
+                .filter_map(|(k, v)| strip(k).map(|k| (k, v.clone())))
+                .collect(),
+            ..Config::default()
+        }
+    }
+
+    // ── 읽기 & 병합 ──────────────────────────────────────────────────────────
+
+    /// 리더에서 읽어 파일 레이어를 교체 (Viper의 `ReadConfig`).
+    ///
+    /// 포맷은 [`Config::set_config_type`]으로 지정해야 한다.
+    pub fn read_config<R: Read>(&mut self, mut reader: R) -> Result<()> {
+        let ext = self
+            .config_type
+            .clone()
+            .ok_or(WrCliError::ConfigTypeNotSet)?;
+        let mut content = String::new();
+        reader.read_to_string(&mut content)?;
+        self.file_values = parse_config_content(&content, &ext, "<reader>")?;
+        Ok(())
+    }
+
+    /// 설정 파일을 기존 파일 레이어에 병합 (Viper의 `MergeInConfig`).
+    ///
+    /// 이미 존재하는 키는 유지된다.
+    pub fn merge_in_config(&mut self, path: impl AsRef<Path>) -> Result<()> {
+        let expanded = expand_path(path.as_ref());
+        let ext = expanded
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_lowercase)
+            .ok_or_else(|| WrCliError::UnsupportedConfigFormat(String::new()))?;
+        let content = std::fs::read_to_string(&expanded)?;
+        let merged = parse_config_content(&content, &ext, &expanded.display().to_string())?;
+        self.merge_values(merged);
+        Ok(())
+    }
+
+    /// 키-값 맵을 기존 파일 레이어에 병합 (Viper의 `MergeConfigMap`).
+    ///
+    /// 이미 존재하는 키는 유지된다.
+    pub fn merge_config_map(&mut self, map: impl IntoIterator<Item = (String, ConfigValue)>) {
+        let merged: HashMap<String, ConfigValue> = map
+            .into_iter()
+            .map(|(k, v)| (self.canonical_key(&k), v))
+            .collect();
+        self.merge_values(merged);
+    }
+
+    fn merge_values(&mut self, merged: HashMap<String, ConfigValue>) {
+        for (k, v) in merged {
+            self.file_values.entry(k).or_insert(v);
         }
     }
 

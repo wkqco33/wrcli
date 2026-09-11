@@ -44,6 +44,9 @@ pub enum WrCliError {
 
     // Completion generation errors
     UnsupportedCompletionShell(String),
+
+    /// `read_config` 호출 시 설정 포맷이 지정되지 않음.
+    ConfigTypeNotSet,
 }
 
 impl WrCliError {
@@ -139,6 +142,12 @@ impl fmt::Display for WrCliError {
                     f,
                     "unsupported completion shell '{}' (supported: bash, zsh, fish)",
                     shell
+                )
+            }
+            WrCliError::ConfigTypeNotSet => {
+                write!(
+                    f,
+                    "config type not set; call set_config_type() before read_config"
                 )
             }
         }

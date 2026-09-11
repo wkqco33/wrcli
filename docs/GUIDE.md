@@ -451,6 +451,30 @@ ctx.config.get_time("started_at")         // Option<SystemTime> — RFC3339 또�
 ctx.config.get_size_in_bytes("max_body")  // Option<u64> — "1.5MB", "2GiB" (1024 기반)
 ```
 
+### 열거 · 하위 트리 · 병합
+
+```rust
+let keys = ctx.config.all_keys();          // Vec<String>, 정렬됨 (Viper AllKeys)
+let tree = ctx.config.all_settings();      // SettingsMap — 점 키를 중첩으로 재구성
+
+// 키 하위 값을 맵으로
+let server = ctx.config.get_string_map_string("server");      // BTreeMap<String, String>
+let ips = ctx.config.get_string_map_string_slice("allowed");  // BTreeMap<String, Vec<String>>
+
+// 하위 트리만 담은 Config
+let sub = ctx.config.sub("server");
+let host = sub.get_string("host");
+
+// 런타임 읽기 / 병합 (기존 키는 유지)
+let mut cfg = Config::new().set_config_type("toml");
+cfg.read_config("[a]\nb = 1\n".as_bytes())?;
+cfg.merge_in_config("extra.toml")?;
+cfg.merge_config_map([("c".to_owned(), ConfigValue::Int(3))]);
+```
+
+`read_config`는 [`set_config_type`](Config::set_config_type)으로 포맷을 먼저 지정해야 하며,
+미지정 시 `WrCliError::ConfigTypeNotSet`을 반환합니다.
+
 ---
 
 ## CommandContext
@@ -522,6 +546,7 @@ myapp gen-completion bash > /etc/bash_completion.d/myapp
 | `CommandHasNoRunner` | `on_run` 미등록 커맨드 실행 |
 | `ConfigFileNotFound` | 설정 파일을 찾을 수 없음 |
 | `ConfigParseError` | 설정 파일 파싱 실패 |
+| `ConfigTypeNotSet` | `read_config`에 포맷 미지정 |
 | `UnsupportedConfigFormat` | 활성화되지 않은 설정 포맷 사용 |
 | `UserError` | `on_run_e`에서 반환한 에러 |
 | `Io` | 설정 파일 읽기 등 I/O 실패 |

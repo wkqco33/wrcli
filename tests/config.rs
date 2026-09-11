@@ -5,7 +5,8 @@ use common::{EnvGuard, args, tempdir};
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
-use wrcli::{Command, Config, Flag, FlagValue};
+use wrcli::config::SettingsEntry;
+use wrcli::{Command, Config, ConfigValue, Flag, FlagValue};
 
 #[test]
 fn config_default_value() {
@@ -575,4 +576,105 @@ fn get_time_parses_offset_and_fraction() {
     let cfg = Config::new().set_default("t", "2023-11-15T07:13:20.500+09:00");
     let expected = UNIX_EPOCH + Duration::from_secs(1_700_000_000) + Duration::from_millis(500);
     assert_eq!(cfg.get_time("t"), Some(expected));
+}
+
+// ── Phase 2: all_keys / all_settings / map getter / sub / merge ──────────────
+
+#[test]
+fn all_keys_lists_sorted_union_of_layers() {
+    let cfg = Config::new()
+        .set_default("b", 1i64)
+        .set("a", 2i64)
+        .bind_env("token", "WRCLI_ALLKEYS_TOKEN");
+    assert_eq!(
+        cfg.all_keys(),
+        vec!["a".to_owned(), "b".to_owned(), "token".to_owned()]
+    );
+}
+
+#[test]
+fn all_settings_reconstructs_nested_tree() {
+    let cfg = Config::new()
+        .set_default("server.host", "127.0.0.1")
+        .set_default("server.port", 8080i64);
+    let settings = cfg.all_settings();
+    match settings.get("server") {
+        Some(SettingsEntry::Map(inner)) => {
+            assert_eq!(
+                inner.get("host"),
+                Some(&SettingsEntry::Value(ConfigValue::String(
+                    "127.0.0.1".to_owned()
+                )))
+            );
+            assert_eq!(
+                inner.get("port"),
+                Some(&SettingsEntry::Value(ConfigValue::Int(8080)))
+            );
+        }
+        other => panic!("expected nested map, got {other:?}"),
+    }
+}
+
+#[test]
+fn get_string_map_string_returns_children() {
+    let cfg = Config::new()
+        .set_default("server.host", "127.0.0.1")
+        .set_default("server.port", 8080i64);
+    let map = cfg.get_string_map_string("server").unwrap();
+    assert_eq!(map.get("host").map(String::as_str), Some("127.0.0.1"));
+    assert_eq!(map.get("port").map(String::as_str), Some("8080"));
+    assert!(cfg.get_string_map_string("missing").is_none());
+}
+
+#[test]
+fn get_string_map_string_slice_returns_arrays() {
+    let cfg = Config::new().set_default("allowed.ips", vec!["a", "b"]);
+    let map = cfg.get_string_map_string_slice("allowed").unwrap();
+    assert_eq!(map.get("ips"), Some(&vec!["a".to_owned(), "b".to_owned()]));
+}
+
+#[test]
+fn sub_scopes_keys_to_prefix() {
+    let cfg = Config::new()
+        .set_default("server.host", "127.0.0.1")
+        .set_default("server.port", 8080i64)
+        .set_default("other", 1i64);
+    let sub = cfg.sub("server");
+    assert_eq!(sub.get_string("host"), Some("127.0.0.1".to_owned()));
+    assert_eq!(sub.get_int("port"), Some(8080));
+    assert_eq!(sub.get_int("other"), None);
+}
+
+#[cfg(feature = "toml-config")]
+#[test]
+fn read_config_from_reader_uses_config_type() {
+    let mut cfg = Config::new().set_config_type("toml");
+    cfg.read_config("[server]\nport = 9000\n".as_bytes())
+        .unwrap();
+    assert_eq!(cfg.get_int("server.port"), Some(9000));
+}
+
+#[cfg(feature = "toml-config")]
+#[test]
+fn merge_in_config_keeps_existing_values() {
+    use std::io::Write;
+    let dir = tempdir();
+    let path = dir.path().join("extra.toml");
+    let mut f = std::fs::File::create(&path).unwrap();
+    writeln!(f, "port = 9999\nhost = \"merged\"").unwrap();
+    drop(f);
+
+    let mut cfg = Config::new().set_config_type("toml");
+    cfg.read_config("port = 1111\n".as_bytes()).unwrap();
+    cfg.merge_in_config(&path).unwrap();
+    assert_eq!(cfg.get_int("port"), Some(1111));
+    assert_eq!(cfg.get_string("host"), Some("merged".to_owned()));
+}
+
+#[test]
+fn merge_config_map_adds_absent_keys() {
+    let mut cfg = Config::new().set_default("a", 1i64);
+    cfg.merge_config_map([("b".to_owned(), ConfigValue::Int(2))]);
+    assert_eq!(cfg.get_int("b"), Some(2));
+    assert_eq!(cfg.get_int("a"), Some(1));
 }

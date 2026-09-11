@@ -13,6 +13,8 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 - 5계층 설정 우선순위: 기본값 → 설정 파일 → 환경변수 → CLI 플래그 → `set` 명시 값.
 - `set`, `is_set`, `register_alias`, `set_key_delimiter`, `set_env_key_replacer`, `allow_empty_env`.
 - 타입 getter: `get_string`, `get_int`/`get_int64`, `get_uint`, `get_bool`, `get_float`, `get_string_vec`/`get_string_slice`, `get_duration`, `get_time`, `get_size_in_bytes`.
+- 열거/하위 트리: `all_keys`, `all_settings`, `get_string_map`/`get_string_map_string`/`get_string_map_string_slice`, `sub`.
+- 런타임 읽기/병합: `read_config`, `merge_in_config`, `merge_config_map`.
 - `set_config_file`, `set_config_name`, 경로, `automatic_env`를 통한 설정 파일 탐색 및 형식 추론.
 - 명시적으로 입력하지 않은 플래그에 대한 설정 → 플래그 폴백.
 - `gen_completion`을 통한 bash, zsh, fish 자동완성 생성.

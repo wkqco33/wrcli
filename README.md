@@ -24,6 +24,8 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - **별칭(`register_alias`)**, 커스텀 키 구분자, env key replacer, 빈 env 처리 제어
 - **Config ↔ Flag 자동 바인딩** — 명시되지 않은 플래그를 설정값으로 시드
 - 타입 조회: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_duration`/`get_time`/`get_size_in_bytes`
+- **열거·하위 트리**: `all_keys`, `all_settings`, `get_string_map*`, `sub`
+- **런타임 읽기·병합**: `read_config`, `merge_in_config`, `merge_config_map`
 - 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
 - **Completion 스크립트 생성** (bash / zsh / fish)
 - 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`

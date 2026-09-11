@@ -9,7 +9,7 @@
 | 티어 | 범위 | 상태 |
 | --- | --- | --- |
 | T1 저위험 | Set/IsSet/Alias/구분자·env replacer/추가 getter | 완료 |
-| T2 중위험 | AllKeys/AllSettings/Map getter/Sub/Merge/Write/신규 포맷 | 예정 |
+| T2 중위험 | AllKeys/AllSettings/Map getter/Sub/Merge/Write/신규 포맷 | 진행 중 |
 | T3 고위험 | Unmarshal(serde), WatchConfig | 예정 |
 | 비목표 | Remote(Etcd/Consul/Firestore/NATS), crypt | 제외 |
 
@@ -41,13 +41,15 @@ explicit(set) → flag → env → file → default
   `get_string_slice`.
 - 테스트: `tests/config.rs` Phase 1 섹션 17개.
 
-### Phase 2 — T2 데이터 접근 (다음)
+### Phase 2 — T2 데이터 접근 (완료)
 
 - `all_keys`, `all_settings`, `get_string_map`/`get_string_map_string`/
   `get_string_map_string_slice`, `sub`.
 - `read_config(reader)`, `merge_in_config(path)`, `merge_config_map`.
+- 신규 타입 `SettingsMap`/`SettingsEntry`, 에러 `ConfigTypeNotSet`.
+- 테스트: `tests/config.rs` Phase 2 섹션 8개 + `settings.rs` 단위 2개.
 
-### Phase 3 — T2 쓰기 + 포맷
+### Phase 3 — T2 쓰기 + 포맷 (다음)
 
 - `write_config_as`/`safe_write_config_as`, `set_config_permissions`.
 - 피처: `ini-config`, `dotenv-config`, `properties-config`.
