@@ -1,4 +1,5 @@
 use super::Color;
+use std::fmt::Write as _;
 
 /// 텍스트 스타일 속성 집합 (색상 + 장식).
 ///
@@ -96,46 +97,61 @@ impl Style {
         if !styled || self.is_plain() {
             return text.to_owned();
         }
-        let mut codes: Vec<String> = Vec::with_capacity(11);
-        if self.bold {
-            codes.push("1".to_owned());
-        }
-        if self.dim {
-            codes.push("2".to_owned());
-        }
-        if self.italic {
-            codes.push("3".to_owned());
-        }
-        if self.underline {
-            codes.push("4".to_owned());
-        }
-        if self.blink {
-            codes.push("5".to_owned());
-        }
-        if self.reverse {
-            codes.push("7".to_owned());
-        }
-        if self.hide {
-            codes.push("8".to_owned());
-        }
-        if self.strikethrough {
-            codes.push("9".to_owned());
-        }
-        if self.overline {
-            codes.push("53".to_owned());
-        }
-        if let Some(fg) = self.fg {
-            codes.push(fg.fg_code_owned());
-        }
-        if let Some(bg) = self.bg {
-            codes.push(bg.bg_code_owned());
+
+        let mut codes = String::with_capacity(16);
+        let mut separator = false;
+        macro_rules! push_code {
+            ($($arg:tt)*) => {{
+                if separator {
+                    codes.push(';');
+                }
+                let _ = write!(codes, $($arg)*);
+                separator = true;
+            }};
         }
 
-        if codes.is_empty() {
-            text.to_owned()
-        } else {
-            format!("\x1b[{}m{}\x1b[0m", codes.join(";"), text)
+        if self.bold {
+            push_code!("1");
         }
+        if self.dim {
+            push_code!("2");
+        }
+        if self.italic {
+            push_code!("3");
+        }
+        if self.underline {
+            push_code!("4");
+        }
+        if self.blink {
+            push_code!("5");
+        }
+        if self.reverse {
+            push_code!("7");
+        }
+        if self.hide {
+            push_code!("8");
+        }
+        if self.strikethrough {
+            push_code!("9");
+        }
+        if self.overline {
+            push_code!("53");
+        }
+        if let Some(fg) = self.fg {
+            if separator {
+                codes.push(';');
+            }
+            fg.write_fg_code(&mut codes);
+            separator = true;
+        }
+        if let Some(bg) = self.bg {
+            if separator {
+                codes.push(';');
+            }
+            bg.write_bg_code(&mut codes);
+        }
+
+        format!("\x1b[{}m{}\x1b[0m", codes, text)
     }
 
     fn is_plain(&self) -> bool {

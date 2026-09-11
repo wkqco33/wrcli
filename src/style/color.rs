@@ -1,6 +1,7 @@
 /// 터미널 전경색 또는 배경색.
 ///
 /// 16개 표준 ANSI 색상, 8비트(256색) 고정 팔레트, 24비트 RGB 트루컬러를 지원.
+use std::fmt::Write as _;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     Black,
@@ -48,11 +49,15 @@ impl Color {
         }
     }
 
-    pub(crate) fn fg_code_owned(self) -> String {
+    pub(crate) fn write_fg_code(self, out: &mut String) {
         match self {
-            Color::Fixed(n) => format!("38;5;{}", n),
-            Color::Rgb(r, g, b) => format!("38;2;{};{};{}", r, g, b),
-            _ => self.fg_code().to_owned(),
+            Color::Fixed(n) => {
+                let _ = write!(out, "38;5;{}", n);
+            }
+            Color::Rgb(r, g, b) => {
+                let _ = write!(out, "38;2;{};{};{}", r, g, b);
+            }
+            _ => out.push_str(self.fg_code()),
         }
     }
 
@@ -78,11 +83,15 @@ impl Color {
         }
     }
 
-    pub(crate) fn bg_code_owned(self) -> String {
+    pub(crate) fn write_bg_code(self, out: &mut String) {
         match self {
-            Color::Fixed(n) => format!("48;5;{}", n),
-            Color::Rgb(r, g, b) => format!("48;2;{};{};{}", r, g, b),
-            _ => self.bg_code().to_owned(),
+            Color::Fixed(n) => {
+                let _ = write!(out, "48;5;{}", n);
+            }
+            Color::Rgb(r, g, b) => {
+                let _ = write!(out, "48;2;{};{};{}", r, g, b);
+            }
+            _ => out.push_str(self.bg_code()),
         }
     }
 
@@ -162,8 +171,12 @@ mod tests {
 
     #[test]
     fn rgb_code_format() {
-        assert_eq!(Color::Rgb(10, 20, 30).fg_code_owned(), "38;2;10;20;30");
-        assert_eq!(Color::Fixed(42).fg_code_owned(), "38;5;42");
+        let mut fg = String::new();
+        Color::Rgb(10, 20, 30).write_fg_code(&mut fg);
+        assert_eq!(fg, "38;2;10;20;30");
+        let mut fixed = String::new();
+        Color::Fixed(42).write_fg_code(&mut fixed);
+        assert_eq!(fixed, "38;5;42");
     }
 
     #[test]

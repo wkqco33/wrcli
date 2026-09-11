@@ -159,12 +159,7 @@ impl Command {
         }
 
         // 명시적으로 설정되지 않은 플래그는 설정 저장소의 값으로 시드 (config → flag).
-        let flag_names: Vec<String> = self.flags.all_flag_names().cloned().collect();
-        for name in &flag_names {
-            if let Some(cv) = config.get(name) {
-                self.flags.seed_value(name, cv);
-            }
-        }
+        self.flags.seed_from_config(config);
 
         // 사용자가 명시적으로 입력한 플래그만 Config 레이어 4로 바인딩
         for (name, fv) in self.flags.values_iter() {

@@ -58,6 +58,14 @@ pub struct Config {
     explicit_env_bindings: HashMap<String, String>,
 }
 
+/// [`Config::resolve`]가 값을 찾은 레이어.
+enum Layer<'a> {
+    Flag(&'a ConfigValue),
+    Env(String),
+    File(&'a ConfigValue),
+    Default(&'a ConfigValue),
+}
+
 impl Config {
     pub fn new() -> Self {
         Default::default()
@@ -113,11 +121,12 @@ impl Config {
             Some(t) => vec![t.to_owned()],
             None => supported_extensions(),
         };
+        let paths = self.search_paths();
 
         for ext in &extensions {
             let filename = format!("{}.{}", name, ext);
-            for path in self.search_paths() {
-                let expanded = expand_path(&path);
+            for path in &paths {
+                let expanded = expand_path(path);
                 let full = expanded.join(&filename);
                 log::debug!("설정 파일 검색 중: {}", full.display());
                 if full.exists() {
@@ -132,11 +141,7 @@ impl Config {
 
         Err(WrCliError::ConfigFileNotFound {
             name: format!("{}.{}", name, extensions.join("|")),
-            paths: self
-                .search_paths()
-                .iter()
-                .map(|p| p.display().to_string())
-                .collect(),
+            paths: paths.iter().map(|p| p.display().to_string()).collect(),
         })
     }
 
@@ -218,20 +223,28 @@ impl Config {
 
     // ── Getter ───────────────────────────────────────────────────────────────
 
+    /// 값이 발견된 우선순위 레이어. 환경변수만 동적 조회라 소유 문자열을 담는다.
+    fn resolve(&self, key: &str) -> Option<Layer<'_>> {
+        if let Some(v) = self.flag_values.get(key) {
+            return Some(Layer::Flag(v));
+        }
+        if let Some(v) = self.env_lookup(key) {
+            return Some(Layer::Env(v));
+        }
+        if let Some(v) = self.file_values.get(key) {
+            return Some(Layer::File(v));
+        }
+        self.defaults.get(key).map(Layer::Default)
+    }
+
     /// 원시 [`ConfigValue`] 조회. 우선순위: CLI 플래그 > 환경변수 > 설정파일 > 기본값.
     ///
     /// 환경변수는 항상 문자열이므로 [`ConfigValue::String`]으로 감싸 반환됨.
     pub fn get(&self, key: &str) -> Option<ConfigValue> {
-        if let Some(v) = self.flag_values.get(key) {
-            return Some(v.clone());
+        match self.resolve(key)? {
+            Layer::Env(v) => Some(ConfigValue::String(v)),
+            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => Some(v.clone()),
         }
-        if let Some(v) = self.env_lookup(key) {
-            return Some(ConfigValue::String(v));
-        }
-        if let Some(v) = self.file_values.get(key) {
-            return Some(v.clone());
-        }
-        self.defaults.get(key).cloned()
     }
 
     /// 저장된 레이어(플래그/파일/기본값)의 [`ConfigValue`] 참조 조회.
@@ -245,88 +258,53 @@ impl Config {
 
     /// `String` 으로 값 조회 (숫자/bool 값도 문자열로 강제 변환).
     pub fn get_string(&self, key: &str) -> Option<String> {
-        if let Some(v) = self.flag_values.get(key) {
-            return v.to_string_coerce();
+        match self.resolve(key)? {
+            Layer::Env(v) => Some(v),
+            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_string_coerce(),
         }
-        if let Some(v) = self.env_lookup(key) {
-            return Some(v);
-        }
-        if let Some(v) = self.file_values.get(key) {
-            return v.to_string_coerce();
-        }
-        self.defaults.get(key)?.to_string_coerce()
     }
 
     /// `i64` 로 값 조회 (필요 시 문자열 파싱).
     pub fn get_int(&self, key: &str) -> Option<i64> {
-        if let Some(v) = self.flag_values.get(key) {
-            return v.to_int_coerce();
+        match self.resolve(key)? {
+            Layer::Env(v) => v.parse().ok(),
+            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_int_coerce(),
         }
-        if let Some(v) = self.env_lookup(key) {
-            return v.parse().ok();
-        }
-        if let Some(v) = self.file_values.get(key) {
-            return v.to_int_coerce();
-        }
-        self.defaults.get(key)?.to_int_coerce()
     }
 
     /// `bool` 로 값 조회 (`true/false/1/0/yes/no` 허용).
     pub fn get_bool(&self, key: &str) -> Option<bool> {
-        if let Some(v) = self.flag_values.get(key) {
-            return v.to_bool_coerce();
-        }
-        if let Some(v) = self.env_lookup(key) {
-            return match v.as_str() {
+        match self.resolve(key)? {
+            Layer::Env(v) => match v.as_str() {
                 "true" | "1" | "yes" => Some(true),
                 "false" | "0" | "no" => Some(false),
                 _ => None,
-            };
+            },
+            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_bool_coerce(),
         }
-        if let Some(v) = self.file_values.get(key) {
-            return v.to_bool_coerce();
-        }
-        self.defaults.get(key)?.to_bool_coerce()
     }
 
     /// `f64` 로 값 조회 (필요 시 문자열 파싱).
     pub fn get_float(&self, key: &str) -> Option<f64> {
-        if let Some(v) = self.flag_values.get(key) {
-            return v.to_float_coerce();
+        match self.resolve(key)? {
+            Layer::Env(v) => v.parse().ok(),
+            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_float_coerce(),
         }
-        if let Some(v) = self.env_lookup(key) {
-            return v.parse().ok();
-        }
-        if let Some(v) = self.file_values.get(key) {
-            return v.to_float_coerce();
-        }
-        self.defaults.get(key)?.to_float_coerce()
     }
 
     /// `Vec<String>` 으로 값 조회. 환경변수는 쉼표(`,`)로 구분하여 배열로 파싱.
     pub fn get_string_vec(&self, key: &str) -> Option<Vec<String>> {
-        if let Some(v) = self.flag_values.get(key) {
-            return v
-                .as_array()
-                .map(|arr| arr.iter().filter_map(|v| v.to_string_coerce()).collect());
-        }
-        if let Some(v) = self.env_lookup(key) {
-            return Some(
+        match self.resolve(key)? {
+            Layer::Env(v) => Some(
                 v.split(',')
                     .map(|s| s.trim().to_owned())
                     .filter(|s| !s.is_empty())
                     .collect(),
-            );
-        }
-        if let Some(v) = self.file_values.get(key) {
-            return v
+            ),
+            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v
                 .as_array()
-                .map(|arr| arr.iter().filter_map(|v| v.to_string_coerce()).collect());
+                .map(|arr| arr.iter().filter_map(|v| v.to_string_coerce()).collect()),
         }
-        self.defaults
-            .get(key)?
-            .as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.to_string_coerce()).collect())
     }
 
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────────

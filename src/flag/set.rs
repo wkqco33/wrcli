@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use super::definition::Flag;
 use super::value::FlagValue;
+use crate::config::Config;
 use crate::error::{Result, WrCliError};
 
 /// 단일 커맨드의 모든 플래그를 담는 컨테이너. 삽입 순서 보존 (help 출력용).
@@ -122,11 +123,6 @@ impl FlagSet {
         self.flags.values().filter(|f| f.persistent)
     }
 
-    /// 등록된 모든 플래그 이름 반복 (config → flag 시드용).
-    pub(crate) fn all_flag_names(&self) -> impl Iterator<Item = &String> {
-        self.flags.keys()
-    }
-
     /// 사용자가 명시적으로 입력한 값만 반복 (기본값 제외).
     /// 디스패치 엔진이 Config 레이어 4 바인딩 시 사용.
     pub(crate) fn values_iter(&self) -> impl Iterator<Item = (&str, &FlagValue)> {
@@ -138,17 +134,24 @@ impl FlagSet {
         self.values.contains_key(name)
     }
 
-    /// 명시적으로 설정되지 않은 플래그에 외부 값(설정 파일 등)을 시드.
+    /// 명시적으로 설정되지 않은 플래그를 설정 저장소 값으로 시드.
     ///
-    /// 값 타입은 플래그의 기본값 타입에 맞춰 변환한다.
-    pub(crate) fn seed_value(&mut self, name: &str, cv: crate::config::ConfigValue) {
-        if self.values.contains_key(name) {
-            return;
-        }
-        if let Some(flag) = self.flags.get(name)
-            && let Some(fv) = super::value::flag_value_from_config(&flag.default, cv)
-        {
-            self.values.insert(name.to_owned(), fv);
+    /// 플래그 기본값 타입에 맞는 설정값만 주입한다.
+    pub(crate) fn seed_from_config(&mut self, config: &Config) {
+        let FlagSet { flags, values, .. } = self;
+        for name in flags.keys() {
+            if values.contains_key(name) {
+                continue;
+            }
+            let Some(flag) = flags.get(name) else {
+                continue;
+            };
+            let Some(cv) = config.get(name) else {
+                continue;
+            };
+            if let Some(fv) = super::value::flag_value_from_config(&flag.default, cv) {
+                values.insert(name.clone(), fv);
+            }
         }
     }
 
