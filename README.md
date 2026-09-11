@@ -99,22 +99,22 @@ cargo run --example styled
 
 ## 문서
 
-상세 레퍼런스는 [GUIDE.md](GUIDE.md)를, 터미널 스타일링은 [STYLE.md](STYLE.md)를 참고하세요.
+상세 레퍼런스는 [docs/GUIDE.md](docs/GUIDE.md)를, 터미널 스타일링은 [docs/STYLE.md](docs/STYLE.md)를 참고하세요.
 
 | 항목 | 바로가기 |
 | ---- | ------- |
-| 커맨드 & 서브커맨드 | [GUIDE.md#커맨드](GUIDE.md#커맨드) |
-| 플래그 타입 & 파싱 문법 | [GUIDE.md#플래그](GUIDE.md#플래그) |
-| 설정(Config) & 우선순위 | [GUIDE.md#설정config](GUIDE.md#설정config) |
-| 설정 파일 자동 탐지 | [GUIDE.md#설정-파일-자동-탐지](GUIDE.md#설정-파일-자동-탐지) |
-| Config ↔ Flag 바인딩 | [GUIDE.md#config--flag-자동-바인딩](GUIDE.md#config--flag-자동-바인딩) |
-| Completion 생성 | [GUIDE.md#completion-스크립트-생성](GUIDE.md#completion-스크립트-생성) |
-| 라이프사이클 훅 | [GUIDE.md#라이프사이클-훅](GUIDE.md#라이프사이클-훅) |
-| CommandContext | [GUIDE.md#commandcontext](GUIDE.md#commandcontext) |
-| 에러 처리 | [GUIDE.md#에러-처리](GUIDE.md#에러-처리) |
-| 테스트 작성 | [GUIDE.md#테스트-작성](GUIDE.md#테스트-작성) |
-| 피처 플래그 | [GUIDE.md#피처-플래그](GUIDE.md#피처-플래그) |
-| 터미널 스타일링 | [STYLE.md](STYLE.md) |
+| 커맨드 & 서브커맨드 | [docs/GUIDE.md#커맨드](docs/GUIDE.md#커맨드) |
+| 플래그 타입 & 파싱 문법 | [docs/GUIDE.md#플래그](docs/GUIDE.md#플래그) |
+| 설정(Config) & 우선순위 | [docs/GUIDE.md#설정config](docs/GUIDE.md#설정config) |
+| 설정 파일 자동 탐지 | [docs/GUIDE.md#설정-파일-자동-탐지](docs/GUIDE.md#설정-파일-자동-탐지) |
+| Config ↔ Flag 바인딩 | [docs/GUIDE.md#config--flag-자동-바인딩](docs/GUIDE.md#config--flag-자동-바인딩) |
+| Completion 생성 | [docs/GUIDE.md#completion-스크립트-생성](docs/GUIDE.md#completion-스크립트-생성) |
+| 라이프사이클 훅 | [docs/GUIDE.md#라이프사이클-훅](docs/GUIDE.md#라이프사이클-훅) |
+| CommandContext | [docs/GUIDE.md#commandcontext](docs/GUIDE.md#commandcontext) |
+| 에러 처리 | [docs/GUIDE.md#에러-처리](docs/GUIDE.md#에러-처리) |
+| 테스트 작성 | [docs/GUIDE.md#테스트-작성](docs/GUIDE.md#테스트-작성) |
+| 피처 플래그 | [docs/GUIDE.md#피처-플래그](docs/GUIDE.md#피처-플래그) |
+| 터미널 스타일링 | [docs/STYLE.md](docs/STYLE.md) |
 
 ---
 

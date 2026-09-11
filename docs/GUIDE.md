@@ -466,7 +466,7 @@ std::fs::write("myapp.bash", bash_script)?;
 `WrCliError::UnsupportedCompletionShell`을 반환합니다.
 
 ```bash
-$ myapp gen-completion bash > /etc/bash_completion.d/myapp
+myapp gen-completion bash > /etc/bash_completion.d/myapp
 ```
 
 ---
