@@ -405,19 +405,50 @@ config.bind_env("token", "API_TOKEN");
 1. 기본값        (set_default)               ← 가장 낮음
 2. 설정 파일     (read_in_config)
 3. 환경 변수     (automatic_env / bind_env)
-4. CLI 플래그    (사용자가 실제로 입력한 경우) ← 가장 높음
+4. CLI 플래그    (사용자가 실제로 입력한 경우)
+5. 명시 값       (set)                       ← 가장 높음
 ```
 
 CLI 플래그 기본값은 주입되지 않습니다. 사용자가 실제로 지정한 값만 설정을 덮어씁니다.
+`set`은 플래그보다 우선하며, `is_set(key)`로 어느 레이어든 값이 있는지 확인할 수 있습니다.
+
+### 명시 값과 별칭
+
+```rust
+let config = Config::new()
+    .set_default("server.port", 8080i64)
+    .set("server.port", 9000i64)          // 최우선 레이어
+    .register_alias("port", "server.port"); // "port"로도 조회
+
+assert!(config.is_set("port"));
+assert_eq!(config.get_int("port"), Some(9000));
+```
+
+별칭은 체인으로 연결할 수 있습니다(`a` → `b` → 정규 키).
+
+### 키 구분자 / env 세부 설정
+
+```rust
+let config = Config::new()
+    .set_key_delimiter('/')                  // "server/port"로 중첩 접근
+    .set_env_key_replacer(&[(".", "__")])   // 대문자 키에 순서대로 적용
+    .allow_empty_env(false);                 // 빈 환경변수를 미설정으로 취급 (Viper 기본)
+```
+
+기본값: 구분자 `'.'`, replacer `.`/`-` → `_`, `allow_empty_env = true`(빈 값도 사용).
 
 ### 설정 조회
 
 ```rust
 ctx.config.get_string("server.host")      // Option<String>
-ctx.config.get_int("server.port")         // Option<i64>
+ctx.config.get_int("server.port")         // Option<i64> (get_int64 동일)
+ctx.config.get_uint("workers")            // Option<u64>
 ctx.config.get_bool("debug")              // Option<bool>
 ctx.config.get_float("ratio")             // Option<f64>
-ctx.config.get_string_vec("allowed.ips")  // Option<Vec<String>>
+ctx.config.get_string_vec("allowed.ips")  // Option<Vec<String>> (get_string_slice 동일)
+ctx.config.get_duration("timeout")        // Option<Duration> — "1h30m", "250ms", 숫자=초
+ctx.config.get_time("started_at")         // Option<SystemTime> — RFC3339 또는 Unix 초
+ctx.config.get_size_in_bytes("max_body")  // Option<u64> — "1.5MB", "2GiB" (1024 기반)
 ```
 
 ---

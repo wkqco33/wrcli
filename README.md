@@ -19,9 +19,11 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - 무한 중첩 서브커맨드 + 알리아스
 - 타입 안전 플래그 (`bool`, `string`, `int`, `float`, `string[]`, `int[]`)
 - persistent 플래그 — 루트에 등록하면 모든 서브커맨드에 자동 전파
-- 4계층 설정 우선순위: 기본값 → 파일(TOML/JSON/YAML) → 환경변수 → CLI 플래그
+- 5계층 설정 우선순위: 기본값 → 파일(TOML/JSON/YAML) → 환경변수 → CLI 플래그 → 명시 값(`set`)
 - 설정 파일 **자동 탐지** (`set_config_file`, 형식/경로 자동 판별)
+- **별칭(`register_alias`)**, 커스텀 키 구분자, env key replacer, 빈 env 처리 제어
 - **Config ↔ Flag 자동 바인딩** — 명시되지 않은 플래그를 설정값으로 시드
+- 타입 조회: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_duration`/`get_time`/`get_size_in_bytes`
 - 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
 - **Completion 스크립트 생성** (bash / zsh / fish)
 - 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`

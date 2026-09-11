@@ -4,6 +4,7 @@ mod common;
 use common::{EnvGuard, args, tempdir};
 
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, UNIX_EPOCH};
 use wrcli::{Command, Config, Flag, FlagValue};
 
 #[test]
@@ -391,4 +392,187 @@ fn config_yaml_file() {
         .execute_with(args(""))
         .unwrap();
     assert_eq!(*val.lock().unwrap(), "example.com:4321");
+}
+
+// ── Phase 1: set / is_set / alias / delimiter / env 옵션 ─────────────────────
+
+#[test]
+fn set_overrides_default_and_env() {
+    let _g = EnvGuard::set("WRCLI_SET_PORT", "1111");
+    let cfg = Config::new()
+        .set_default("port", 1i64)
+        .automatic_env()
+        .set_env_prefix("WRCLI_SET")
+        .set("port", 9999i64);
+    assert_eq!(cfg.get_int("port"), Some(9999));
+}
+
+#[test]
+fn set_overrides_explicit_cli_flag() {
+    let val = Arc::new(Mutex::new(0i64));
+    let val2 = val.clone();
+    Command::new("app")
+        .flag(Flag::new("port", FlagValue::Int(0), "port"))
+        .with_config(Config::new().set("port", 9999i64))
+        .on_run(move |ctx| *val2.lock().unwrap() = ctx.config.get_int("port").unwrap_or(0))
+        .execute_with(args("--port 1234"))
+        .unwrap();
+    assert_eq!(*val.lock().unwrap(), 9999);
+}
+
+#[test]
+fn is_set_reflects_all_layers() {
+    let _g = EnvGuard::set("WRCLI_ISSET_FLAG", "x");
+    let cfg = Config::new()
+        .set_default("a", 1i64)
+        .set("b", 2i64)
+        .automatic_env()
+        .set_env_prefix("WRCLI_ISSET");
+    assert!(cfg.is_set("a"), "default layer");
+    assert!(cfg.is_set("b"), "explicit layer");
+    assert!(cfg.is_set("flag"), "env layer");
+    assert!(!cfg.is_set("missing"));
+}
+
+#[test]
+fn register_alias_resolves_to_canonical_key() {
+    let cfg = Config::new()
+        .set_default("server.port", 8080i64)
+        .register_alias("port", "server.port");
+    assert_eq!(cfg.get_int("port"), Some(8080));
+}
+
+#[test]
+fn register_alias_before_default_stores_canonical_key() {
+    let cfg = Config::new()
+        .register_alias("port", "server.port")
+        .set_default("port", 8080i64);
+    assert_eq!(cfg.get_int("server.port"), Some(8080));
+}
+
+#[test]
+fn register_alias_chain_resolves() {
+    let cfg = Config::new()
+        .set_default("server.port", 8080i64)
+        .register_alias("p", "port")
+        .register_alias("port", "server.port");
+    assert_eq!(cfg.get_int("p"), Some(8080));
+}
+
+#[test]
+fn custom_key_delimiter_accesses_nested_keys() {
+    let cfg = Config::new()
+        .set_key_delimiter('/')
+        .set_default("server.port", 8080i64);
+    assert_eq!(cfg.get_int("server/port"), Some(8080));
+}
+
+#[test]
+fn custom_env_key_replacer_maps_separator() {
+    let _g = EnvGuard::set("WRCLI_REPL_DB__PORT", "1234");
+    let cfg = Config::new()
+        .automatic_env()
+        .set_env_prefix("WRCLI_REPL")
+        .set_env_key_replacer(&[(".", "__")]);
+    assert_eq!(cfg.get_int("db.port"), Some(1234));
+}
+
+#[test]
+fn allow_empty_env_default_uses_empty_value() {
+    let _g = EnvGuard::set("WRCLI_EMPTY_VAL", "");
+    let cfg = Config::new()
+        .set_default("val", "fallback")
+        .automatic_env()
+        .set_env_prefix("WRCLI_EMPTY");
+    assert_eq!(cfg.get_string("val"), Some(String::new()));
+}
+
+#[test]
+fn allow_empty_env_false_falls_back_to_default() {
+    let _g = EnvGuard::set("WRCLI_EMPTY_VAL", "");
+    let cfg = Config::new()
+        .set_default("val", "fallback")
+        .automatic_env()
+        .set_env_prefix("WRCLI_EMPTY")
+        .allow_empty_env(false);
+    assert_eq!(cfg.get_string("val"), Some("fallback".to_owned()));
+}
+
+// ── Phase 1: 추가 getter ─────────────────────────────────────────────────────
+
+#[test]
+fn get_int64_and_uint() {
+    let cfg = Config::new()
+        .set_default("a", 42i64)
+        .set_default("neg", -1i64);
+    assert_eq!(cfg.get_int64("a"), Some(42));
+    assert_eq!(cfg.get_uint("a"), Some(42));
+    assert_eq!(cfg.get_uint("neg"), None);
+}
+
+#[test]
+fn get_string_slice_matches_string_vec() {
+    let cfg = Config::new().set_default("tags", vec!["a", "b"]);
+    assert_eq!(
+        cfg.get_string_slice("tags"),
+        Some(vec!["a".to_owned(), "b".to_owned()])
+    );
+}
+
+#[test]
+fn get_duration_parses_go_style_strings() {
+    let cfg = Config::new()
+        .set_default("timeout", "1h30m")
+        .set_default("poll", "250ms")
+        .set_default("secs", "30s");
+    assert_eq!(cfg.get_duration("timeout"), Some(Duration::from_secs(5400)));
+    assert_eq!(cfg.get_duration("poll"), Some(Duration::from_millis(250)));
+    assert_eq!(cfg.get_duration("secs"), Some(Duration::from_secs(30)));
+}
+
+#[test]
+fn get_duration_numeric_is_seconds() {
+    let cfg = Config::new().set_default("t", 5i64);
+    assert_eq!(cfg.get_duration("t"), Some(Duration::from_secs(5)));
+}
+
+#[test]
+fn get_duration_invalid_returns_none() {
+    let cfg = Config::new()
+        .set_default("bare", "30")
+        .set_default("junk", "not-a-duration");
+    assert_eq!(cfg.get_duration("bare"), None);
+    assert_eq!(cfg.get_duration("junk"), None);
+}
+
+#[test]
+fn get_size_in_bytes_parses_units() {
+    let cfg = Config::new()
+        .set_default("a", "512")
+        .set_default("b", "1KB")
+        .set_default("c", "1.5MB")
+        .set_default("d", "2GiB")
+        .set_default("e", 4096i64);
+    assert_eq!(cfg.get_size_in_bytes("a"), Some(512));
+    assert_eq!(cfg.get_size_in_bytes("b"), Some(1024));
+    assert_eq!(cfg.get_size_in_bytes("c"), Some(1_572_864));
+    assert_eq!(cfg.get_size_in_bytes("d"), Some(2 * 1024 * 1024 * 1024));
+    assert_eq!(cfg.get_size_in_bytes("e"), Some(4096));
+}
+
+#[test]
+fn get_time_parses_unix_and_rfc3339() {
+    let cfg = Config::new()
+        .set_default("unix", 1_700_000_000i64)
+        .set_default("rfc", "2023-11-14T22:13:20Z");
+    let expected = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+    assert_eq!(cfg.get_time("unix"), Some(expected));
+    assert_eq!(cfg.get_time("rfc"), Some(expected));
+}
+
+#[test]
+fn get_time_parses_offset_and_fraction() {
+    let cfg = Config::new().set_default("t", "2023-11-15T07:13:20.500+09:00");
+    let expected = UNIX_EPOCH + Duration::from_secs(1_700_000_000) + Duration::from_millis(500);
+    assert_eq!(cfg.get_time("t"), Some(expected));
 }

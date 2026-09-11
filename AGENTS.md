@@ -10,7 +10,9 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 - 커맨드 트리, 알리아스, persistent 플래그, 라이프사이클 훅, `--help`/`--version`.
 - 타입 지정 플래그: `Bool`, `String`, `Int`, `Float`, `StringVec`, `IntVec`.
 - 포지셔널 인수 validator: `range_args`, `valid_args` 등.
-- 4계층 설정 우선순위: 기본값 → 설정 파일 → 환경변수 → 명시적으로 입력한 CLI 플래그.
+- 5계층 설정 우선순위: 기본값 → 설정 파일 → 환경변수 → CLI 플래그 → `set` 명시 값.
+- `set`, `is_set`, `register_alias`, `set_key_delimiter`, `set_env_key_replacer`, `allow_empty_env`.
+- 타입 getter: `get_string`, `get_int`/`get_int64`, `get_uint`, `get_bool`, `get_float`, `get_string_vec`/`get_string_slice`, `get_duration`, `get_time`, `get_size_in_bytes`.
 - `set_config_file`, `set_config_name`, 경로, `automatic_env`를 통한 설정 파일 탐색 및 형식 추론.
 - 명시적으로 입력하지 않은 플래그에 대한 설정 → 플래그 폴백.
 - `gen_completion`을 통한 bash, zsh, fish 자동완성 생성.
@@ -112,7 +114,9 @@ cargo fmt -- --check
 - **빌더 패턴**: 메서드는 `self`를 소비하고 `Self`를 반환합니다(`Command::new("x").flag(...).on_run(...)`).
 - **에러**: `WrCliError` 열거형을 직접 사용합니다. 새 변형은 끝에 추가합니다(열거형은
   `#[non_exhaustive]`). 사용자 에러는 `WrCliError::user(e)` 또는 `on_run_e`로 감쌉니다.
-- **설정 우선순위**(낮음→높음): 기본값 → 설정 파일 → 환경변수 → CLI 플래그(명시적으로 설정한 값만).
+- **설정 우선순위**(낮음→높음): 기본값 → 설정 파일 → 환경변수 → CLI 플래그(명시적으로 설정한 값만) → `set` 명시 값.
+- **별칭/구분자**: `register_alias`로 키 별칭을 연결하고 `set_key_delimiter`로 중첩 키 구분자를 바꿉니다.
+- **env 세부**: `set_env_key_replacer`로 env 변수명 치환을, `allow_empty_env`로 빈 값 처리를 제어합니다(기본은 빈 값도 사용).
 - **Persistent 플래그**: `Command::persistent_flag()`로 등록하며 서브커맨드로 전파됩니다.
 - **점 표기 키**: 설정은 `"server.port"`를 지원하고, 환경변수는 `.`/`-`를 `_`로 바꾸고 대문자로 만듭니다.
 - **설정 탐색**: 명시적 `set_config_file`이 우선하며, 그렇지 않으면 설정한 이름/경로와 지원

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use super::parser::parse_config_content;
 use super::value::ConfigValue;
@@ -38,14 +39,18 @@ use crate::error::{Result, WrCliError};
 /// cfg.read_in_config().ok();
 /// let port = cfg.get_int("server.port").unwrap_or(8080);
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Config {
     // 우선순위 레이어 1 (최저): 프로그래밍 기본값
     defaults: HashMap<String, ConfigValue>,
     // 우선순위 레이어 2: 설정 파일 값
     file_values: HashMap<String, ConfigValue>,
-    // 우선순위 레이어 4 (최고): CLI 플래그 오버라이드
+    // 우선순위 레이어 3: CLI 플래그 오버라이드
     flag_values: HashMap<String, ConfigValue>,
+    // 우선순위 레이어 4 (최고): `set()`으로 지정한 명시 값
+    explicit_values: HashMap<String, ConfigValue>,
+    // 별칭 → 정규 키
+    aliases: HashMap<String, String>,
 
     config_name: Option<String>,
     config_type: Option<String>,
@@ -55,11 +60,39 @@ pub struct Config {
     env_prefix: Option<String>,
     env_prefix_upper: Option<String>,
     auto_env: bool,
+    allow_empty_env: bool,
+    env_key_replacer: Option<Vec<(String, String)>>,
     explicit_env_bindings: HashMap<String, String>,
+
+    key_delim: char,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            defaults: HashMap::new(),
+            file_values: HashMap::new(),
+            flag_values: HashMap::new(),
+            explicit_values: HashMap::new(),
+            aliases: HashMap::new(),
+            config_name: None,
+            config_type: None,
+            config_paths: Vec::new(),
+            config_file: None,
+            env_prefix: None,
+            env_prefix_upper: None,
+            auto_env: false,
+            allow_empty_env: true,
+            env_key_replacer: None,
+            explicit_env_bindings: HashMap::new(),
+            key_delim: '.',
+        }
+    }
 }
 
 /// [`Config::resolve`]가 값을 찾은 레이어.
 enum Layer<'a> {
+    Explicit(&'a ConfigValue),
     Flag(&'a ConfigValue),
     Env(String),
     File(&'a ConfigValue),
@@ -183,7 +216,50 @@ impl Config {
 
     /// 프로그래밍 기본값 설정 (최저 우선순위).
     pub fn set_default(mut self, key: &str, val: impl Into<ConfigValue>) -> Self {
-        self.defaults.insert(key.to_owned(), val.into());
+        let key = self.canonical_key(key);
+        self.defaults.insert(key, val.into());
+        self
+    }
+
+    /// 명시 값을 설정 (최고 우선순위, Viper의 `Set`).
+    pub fn set(mut self, key: &str, val: impl Into<ConfigValue>) -> Self {
+        let key = self.canonical_key(key);
+        self.explicit_values.insert(key, val.into());
+        self
+    }
+
+    /// `alias`로 조회할 때 `key`의 값을 반환하도록 등록 (Viper의 `RegisterAlias`).
+    pub fn register_alias(mut self, alias: &str, key: &str) -> Self {
+        let alias = self.canonical_key(alias);
+        let key = self.canonical_key(key);
+        self.aliases.insert(alias, key);
+        self
+    }
+
+    /// 중첩 키 구분자 변경 (기본 `'.'`, Viper의 `SetKeyDelimiter`).
+    pub fn set_key_delimiter(mut self, delim: char) -> Self {
+        self.key_delim = delim;
+        self
+    }
+
+    /// 환경변수명 생성 시 적용할 치환 쌍 설정 (Viper의 `SetEnvKeyReplacer`).
+    ///
+    /// 대문자로 변환된 키에 순서대로 적용된다. 기본은 `.`/`-` → `_`.
+    pub fn set_env_key_replacer(mut self, pairs: &[(&str, &str)]) -> Self {
+        self.env_key_replacer = Some(
+            pairs
+                .iter()
+                .map(|(from, to)| ((*from).to_owned(), (*to).to_owned()))
+                .collect(),
+        );
+        self
+    }
+
+    /// 빈 환경변수를 값으로 취급할지 설정 (Viper의 `AllowEmptyEnv`).
+    ///
+    /// 기본값은 `true`(빈 값도 사용). Viper 기본 동작(빈 값=미설정)은 `false`.
+    pub fn allow_empty_env(mut self, allow: bool) -> Self {
+        self.allow_empty_env = allow;
         self
     }
 
@@ -207,8 +283,8 @@ impl Config {
 
     /// 설정 키를 특정 환경 변수에 명시적으로 바인딩.
     pub fn bind_env(mut self, key: &str, env_var: &str) -> Self {
-        self.explicit_env_bindings
-            .insert(key.to_owned(), env_var.to_owned());
+        let key = self.canonical_key(key);
+        self.explicit_env_bindings.insert(key, env_var.to_owned());
         self
     }
 
@@ -223,44 +299,78 @@ impl Config {
 
     // ── Getter ───────────────────────────────────────────────────────────────
 
-    /// 값이 발견된 우선순위 레이어. 환경변수만 동적 조회라 소유 문자열을 담는다.
-    fn resolve(&self, key: &str) -> Option<Layer<'_>> {
-        if let Some(v) = self.flag_values.get(key) {
-            return Some(Layer::Flag(v));
+    /// 별칭과 커스텀 구분자를 반영한 내부(점 표기) 키.
+    fn canonical_key(&self, key: &str) -> String {
+        let mut key = if self.key_delim == '.' {
+            key.to_owned()
+        } else {
+            key.replace(self.key_delim, ".")
+        };
+        let mut hops = 0;
+        while let Some(target) = self.aliases.get(&key) {
+            key = target.clone();
+            hops += 1;
+            if hops >= 32 {
+                log::warn!("alias cycle detected near '{}'", key);
+                break;
+            }
         }
-        if let Some(v) = self.env_lookup(key) {
-            return Some(Layer::Env(v));
-        }
-        if let Some(v) = self.file_values.get(key) {
-            return Some(Layer::File(v));
-        }
-        self.defaults.get(key).map(Layer::Default)
+        key
     }
 
-    /// 원시 [`ConfigValue`] 조회. 우선순위: CLI 플래그 > 환경변수 > 설정파일 > 기본값.
+    /// 우선순위 레이어에서 `key`를 찾아 반환. 환경변수만 동적 조회라 소유 문자열을 담는다.
+    fn resolve(&self, key: &str) -> Option<Layer<'_>> {
+        let key = self.canonical_key(key);
+        if let Some(v) = self.explicit_values.get(&key) {
+            return Some(Layer::Explicit(v));
+        }
+        if let Some(v) = self.flag_values.get(&key) {
+            return Some(Layer::Flag(v));
+        }
+        if let Some(v) = self.env_lookup(&key) {
+            return Some(Layer::Env(v));
+        }
+        if let Some(v) = self.file_values.get(&key) {
+            return Some(Layer::File(v));
+        }
+        self.defaults.get(&key).map(Layer::Default)
+    }
+
+    /// 어떤 레이어에서든 값이 있으면 `true` (기본값 포함, Viper와 동일).
+    pub fn is_set(&self, key: &str) -> bool {
+        self.resolve(key).is_some()
+    }
+
+    /// 원시 [`ConfigValue`] 조회. 우선순위: Set > CLI 플래그 > 환경변수 > 설정파일 > 기본값.
     ///
     /// 환경변수는 항상 문자열이므로 [`ConfigValue::String`]으로 감싸 반환됨.
     pub fn get(&self, key: &str) -> Option<ConfigValue> {
         match self.resolve(key)? {
             Layer::Env(v) => Some(ConfigValue::String(v)),
-            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => Some(v.clone()),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                Some(v.clone())
+            }
         }
     }
 
-    /// 저장된 레이어(플래그/파일/기본값)의 [`ConfigValue`] 참조 조회.
+    /// 저장된 레이어(Set/플래그/파일/기본값)의 [`ConfigValue`] 참조 조회.
     /// 환경변수 레이어는 동적 조회이므로 포함되지 않음.
     pub fn get_ref(&self, key: &str) -> Option<&ConfigValue> {
-        self.flag_values
-            .get(key)
-            .or_else(|| self.file_values.get(key))
-            .or_else(|| self.defaults.get(key))
+        let key = self.canonical_key(key);
+        self.explicit_values
+            .get(&key)
+            .or_else(|| self.flag_values.get(&key))
+            .or_else(|| self.file_values.get(&key))
+            .or_else(|| self.defaults.get(&key))
     }
 
     /// `String` 으로 값 조회 (숫자/bool 값도 문자열로 강제 변환).
     pub fn get_string(&self, key: &str) -> Option<String> {
         match self.resolve(key)? {
             Layer::Env(v) => Some(v),
-            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_string_coerce(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_string_coerce()
+            }
         }
     }
 
@@ -268,7 +378,24 @@ impl Config {
     pub fn get_int(&self, key: &str) -> Option<i64> {
         match self.resolve(key)? {
             Layer::Env(v) => v.parse().ok(),
-            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_int_coerce(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_int_coerce()
+            }
+        }
+    }
+
+    /// `i64` 로 값 조회. [`Config::get_int`]와 동일 (Viper 명칭 호환).
+    pub fn get_int64(&self, key: &str) -> Option<i64> {
+        self.get_int(key)
+    }
+
+    /// `u64` 로 값 조회 (음수는 `None`).
+    pub fn get_uint(&self, key: &str) -> Option<u64> {
+        match self.resolve(key)? {
+            Layer::Env(v) => v.parse().ok(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_uint_coerce()
+            }
         }
     }
 
@@ -280,7 +407,9 @@ impl Config {
                 "false" | "0" | "no" => Some(false),
                 _ => None,
             },
-            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_bool_coerce(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_bool_coerce()
+            }
         }
     }
 
@@ -288,7 +417,9 @@ impl Config {
     pub fn get_float(&self, key: &str) -> Option<f64> {
         match self.resolve(key)? {
             Layer::Env(v) => v.parse().ok(),
-            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v.to_float_coerce(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_float_coerce()
+            }
         }
     }
 
@@ -301,9 +432,48 @@ impl Config {
                     .filter(|s| !s.is_empty())
                     .collect(),
             ),
-            Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => v
                 .as_array()
                 .map(|arr| arr.iter().filter_map(|v| v.to_string_coerce()).collect()),
+        }
+    }
+
+    /// `Vec<String>` 으로 값 조회. [`Config::get_string_vec`]와 동일 (Viper 명칭 호환).
+    pub fn get_string_slice(&self, key: &str) -> Option<Vec<String>> {
+        self.get_string_vec(key)
+    }
+
+    /// [`std::time::Duration`] 으로 값 조회.
+    ///
+    /// 문자열은 Go 스타일(`"1h30m"`, `"250ms"`)로, 숫자는 초로 해석한다.
+    pub fn get_duration(&self, key: &str) -> Option<Duration> {
+        match self.resolve(key)? {
+            Layer::Env(v) => ConfigValue::String(v).to_duration_coerce(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_duration_coerce()
+            }
+        }
+    }
+
+    /// [`std::time::SystemTime`] 으로 값 조회.
+    ///
+    /// 숫자는 Unix epoch 초, 문자열은 RFC3339 또는 Unix 초로 해석한다.
+    pub fn get_time(&self, key: &str) -> Option<SystemTime> {
+        match self.resolve(key)? {
+            Layer::Env(v) => ConfigValue::String(v).to_time_coerce(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_time_coerce()
+            }
+        }
+    }
+
+    /// 바이트 수(`u64`)로 값 조회. `"1KB"`, `"1.5MB"`, `"2GiB"` 등 1024 기반 단위 지원.
+    pub fn get_size_in_bytes(&self, key: &str) -> Option<u64> {
+        match self.resolve(key)? {
+            Layer::Env(v) => ConfigValue::String(v).to_size_in_bytes_coerce(),
+            Layer::Explicit(v) | Layer::Flag(v) | Layer::File(v) | Layer::Default(v) => {
+                v.to_size_in_bytes_coerce()
+            }
         }
     }
 
@@ -311,12 +481,12 @@ impl Config {
 
     fn env_lookup(&self, key: &str) -> Option<String> {
         if let Some(env_var) = self.explicit_env_bindings.get(key)
-            && let Ok(v) = std::env::var(env_var)
+            && let Some(v) = read_env(env_var, self.allow_empty_env)
         {
             return Some(v);
         }
         if self.auto_env
-            && let Ok(v) = std::env::var(self.key_to_env_var(key))
+            && let Some(v) = read_env(&self.key_to_env_var(key), self.allow_empty_env)
         {
             return Some(v);
         }
@@ -324,20 +494,24 @@ impl Config {
     }
 
     fn key_to_env_var(&self, key: &str) -> String {
-        let upper: String = key
-            .chars()
-            .map(|c| {
-                if c == '.' || c == '-' {
-                    '_'
-                } else {
-                    c.to_ascii_uppercase()
-                }
-            })
-            .collect();
-        match &self.env_prefix_upper {
-            Some(prefix) => format!("{}_{}", prefix, upper),
-            None => upper,
+        let upper = match &self.env_prefix_upper {
+            Some(prefix) => format!("{}_{}", prefix, key).to_uppercase(),
+            None => key.to_uppercase(),
+        };
+        match &self.env_key_replacer {
+            Some(pairs) => pairs.iter().fold(upper, |acc, (from, to)| {
+                acc.replace(from.as_str(), to.as_str())
+            }),
+            None => upper.replace(['.', '-'], "_"),
         }
+    }
+}
+
+/// 환경변수 조회. `allow_empty`가 false면 빈 값을 미설정으로 취급.
+fn read_env(var: &str, allow_empty: bool) -> Option<String> {
+    match std::env::var(var) {
+        Ok(v) if allow_empty || !v.is_empty() => Some(v),
+        _ => None,
     }
 }
 
