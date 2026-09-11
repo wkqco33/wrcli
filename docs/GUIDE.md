@@ -10,8 +10,20 @@
 - [포지셔널 인수 검증](#포지셔널-인수-검증)
 - [라이프사이클 훅](#라이프사이클-훅)
 - [설정(Config)](#설정config)
-- [설정 파일 자동 탐지](#설정-파일-자동-탐지)
-- [Config ↔ Flag 자동 바인딩](#config--flag-자동-바인딩)
+  - [기본값](#기본값)
+  - [설정 파일](#설정-파일)
+  - [설정 파일 자동 탐지](#설정-파일-자동-탐지)
+  - [Config ↔ Flag 자동 바인딩](#config--flag-자동-바인딩)
+  - [환경 변수](#환경-변수)
+  - [우선순위 규칙](#우선순위-규칙)
+  - [명시 값과 별칭](#명시-값과-별칭)
+  - [키 구분자와 env 설정](#키-구분자와-env-설정)
+  - [설정 조회](#설정-조회)
+  - [열거와 맵 조회](#열거와-맵-조회)
+  - [런타임 읽기와 병합](#런타임-읽기와-병합)
+  - [설정 저장](#설정-저장)
+  - [구조체 역직렬화](#구조체-역직렬화)
+  - [설정 파일 감시](#설정-파일-감시)
 - [CommandContext](#commandcontext)
 - [Completion 스크립트 생성](#completion-스크립트-생성)
 - [에러 처리](#에러-처리)
@@ -325,8 +337,9 @@ url = "postgres://localhost/mydb"
 
 ### 설정 파일 자동 탐지
 
-`config_type`을 지정하지 않으면 **모든 지원 형식**(TOML, JSON, YAML)을 순서대로
-시도합니다. 또 검색 경로를 직접 지정하지 않아도 표준 위치를 자동으로 탐지합니다.
+`config_type`을 지정하지 않으면 **활성화된 모든 지원 형식**(TOML, JSON, YAML, INI,
+dotenv, properties)을 순서대로 시도합니다. 또 검색 경로를 직접 지정하지 않아도
+표준 위치를 자동으로 탐지합니다.
 
 **검색 순서** (Viper 스타일):
 
@@ -341,7 +354,7 @@ url = "postgres://localhost/mydb"
 let mut config = Config::new()
     .set_config_name("myapp");   // 타입 미지정 → 자동 판별, 경로 미지정 → 자동 탐지
 
-config.read_in_config().ok();    // ~/.config/myapp/{toml,json,yaml} 등에서 검색
+config.read_in_config().ok();    // ~/.config/myapp/{toml,json,yaml,ini,...} 등에서 검색
 ```
 
 **단일 파일 직접 지정** — `set_config_file`:
@@ -426,7 +439,7 @@ assert_eq!(config.get_int("port"), Some(9000));
 
 별칭은 체인으로 연결할 수 있습니다(`a` → `b` → 정규 키).
 
-### 키 구분자 / env 세부 설정
+### 키 구분자와 env 설정
 
 ```rust
 let config = Config::new()
@@ -451,7 +464,7 @@ ctx.config.get_time("started_at")         // Option<SystemTime> — RFC3339 또�
 ctx.config.get_size_in_bytes("max_body")  // Option<u64> — "1.5MB", "2GiB" (1024 기반)
 ```
 
-### 열거 · 하위 트리 · 병합
+### 열거와 맵 조회
 
 ```rust
 let keys = ctx.config.all_keys();          // Vec<String>, 정렬됨 (Viper AllKeys)
@@ -464,18 +477,21 @@ let ips = ctx.config.get_string_map_string_slice("allowed");  // BTreeMap<String
 // 하위 트리만 담은 Config
 let sub = ctx.config.sub("server");
 let host = sub.get_string("host");
+```
 
-// 런타임 읽기 / 병합 (기존 키는 유지)
+### 런타임 읽기와 병합
+
+```rust
 let mut cfg = Config::new().set_config_type("toml");
-cfg.read_config("[a]\nb = 1\n".as_bytes())?;
-cfg.merge_in_config("extra.toml")?;
+cfg.read_config("[a]\nb = 1\n".as_bytes())?;   // 파일 레이어 교체
+cfg.merge_in_config("extra.toml")?;            // 기존 키를 유지하며 병합
 cfg.merge_config_map([("c".to_owned(), ConfigValue::Int(3))]);
 ```
 
 `read_config`는 [`set_config_type`](Config::set_config_type)으로 포맷을 먼저 지정해야 하며,
 미지정 시 `WrCliError::ConfigTypeNotSet`을 반환합니다.
 
-### 설정 저장(Write)
+### 설정 저장
 
 ```rust
 // 모든 레이어를 병합한 현재 설정을 파일로 저장 (확장자로 포맷 판별)
@@ -487,7 +503,7 @@ ctx.config.safe_write_config_as("out.json")?; // Err(ConfigFileExists)
 
 쓰기 지원 포맷: TOML, JSON, INI, dotenv, properties (해당 피처 활성화 시).
 
-### 구조체 역직렬화 (serde)
+### 구조체 역직렬화
 
 `serde` 피처를 켜면 설정을 구조체로 바로 매핑할 수 있습니다.
 
@@ -504,7 +520,7 @@ let app: App = ctx.config.unmarshal()?;                    // 전체 트리
 
 지원: struct/map, `Vec`, `Option`, 원시 타입, unit enum variant.
 
-### 설정 파일 감시 (Watch)
+### 설정 파일 감시
 
 ```rust
 let mut cfg = Config::new()
@@ -706,4 +722,4 @@ wrcli = { version = "0.1", default-features = false }
 
 스타일(`Style`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress` 등)은
 기본으로 제공되며 별도 피처가 필요 없습니다. 사용법은
-[STYLE.md](STYLE.md)를 참고하세요.
+[STYLE.md](/docs/STYLE.md)를 참고하세요.

@@ -19,7 +19,7 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - 무한 중첩 서브커맨드 + 알리아스
 - 타입 안전 플래그 (`bool`, `string`, `int`, `float`, `string[]`, `int[]`)
 - persistent 플래그 — 루트에 등록하면 모든 서브커맨드에 자동 전파
-- 5계층 설정 우선순위: 기본값 → 파일(TOML/JSON/YAML) → 환경변수 → CLI 플래그 → 명시 값(`set`)
+- 5계층 설정 우선순위: 기본값 → 파일(TOML/JSON/YAML/INI/dotenv/properties) → 환경변수 → CLI 플래그 → 명시 값(`set`)
 - 설정 파일 **자동 탐지** (`set_config_file`, 형식/경로 자동 판별)
 - **별칭(`register_alias`)**, 커스텀 키 구분자, env key replacer, 빈 env 처리 제어
 - **Config ↔ Flag 자동 바인딩** — 명시되지 않은 플래그를 설정값으로 시드
@@ -116,6 +116,14 @@ cargo run --example styled
 | 설정(Config) & 우선순위 | [docs/GUIDE.md#설정config](docs/GUIDE.md#설정config) |
 | 설정 파일 자동 탐지 | [docs/GUIDE.md#설정-파일-자동-탐지](docs/GUIDE.md#설정-파일-자동-탐지) |
 | Config ↔ Flag 바인딩 | [docs/GUIDE.md#config--flag-자동-바인딩](docs/GUIDE.md#config--flag-자동-바인딩) |
+| 명시 값 & 별칭 | [docs/GUIDE.md#명시-값과-별칭](docs/GUIDE.md#명시-값과-별칭) |
+| 키 구분자 & env 설정 | [docs/GUIDE.md#키-구분자와-env-설정](docs/GUIDE.md#키-구분자와-env-설정) |
+| 설정 조회 (typed getter) | [docs/GUIDE.md#설정-조회](docs/GUIDE.md#설정-조회) |
+| 열거 & 맵 조회 | [docs/GUIDE.md#열거와-맵-조회](docs/GUIDE.md#열거와-맵-조회) |
+| 런타임 읽기 & 병합 | [docs/GUIDE.md#런타임-읽기와-병합](docs/GUIDE.md#런타임-읽기와-병합) |
+| 설정 저장 | [docs/GUIDE.md#설정-저장](docs/GUIDE.md#설정-저장) |
+| 구조체 역직렬화 | [docs/GUIDE.md#구조체-역직렬화](docs/GUIDE.md#구조체-역직렬화) |
+| 설정 파일 감시 | [docs/GUIDE.md#설정-파일-감시](docs/GUIDE.md#설정-파일-감시) |
 | Completion 생성 | [docs/GUIDE.md#completion-스크립트-생성](docs/GUIDE.md#completion-스크립트-생성) |
 | 라이프사이클 훅 | [docs/GUIDE.md#라이프사이클-훅](docs/GUIDE.md#라이프사이클-훅) |
 | CommandContext | [docs/GUIDE.md#commandcontext](docs/GUIDE.md#commandcontext) |
@@ -123,6 +131,7 @@ cargo run --example styled
 | 테스트 작성 | [docs/GUIDE.md#테스트-작성](docs/GUIDE.md#테스트-작성) |
 | 피처 플래그 | [docs/GUIDE.md#피처-플래그](docs/GUIDE.md#피처-플래그) |
 | 터미널 스타일링 | [docs/STYLE.md](docs/STYLE.md) |
+| 변경 이력 | [CHANGELOG.md](CHANGELOG.md) |
 
 ---
 

@@ -25,7 +25,7 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 - `Color`, `Style`, `Text`, `Table`, `Panel`, `Rule`, `Tree`, `Progress`를 통한 터미널 스타일링 및 렌더링.
 
 기능을 변경하거나 문서화할 때는 구현과 함께 관련 통합 테스트 및
-`README.md`/`docs/GUIDE.md`/`docs/STYLE.md` 문서를 갱신하세요.
+`README.md`/`docs/GUIDE.md`/`docs/STYLE.md` 문서, `CHANGELOG.md`를 갱신하세요.
 
 ## 양보할 수 없는 워크플로: TDD(테스트 주도 개발)
 
@@ -141,8 +141,10 @@ cargo fmt -- --check
 - `README.md` — 저장소 루트에 유지합니다(crates.io/배포용).
 - `docs/GUIDE.md` — 상세 사용 레퍼런스.
 - `docs/STYLE.md` — 터미널 스타일링 가이드.
+- `CHANGELOG.md` — 릴리스별 변경 이력 (Keep a Changelog 형식).
 
 가이드 성격의 문서는 `docs/`에 두고, 상호 링크는 저장소 루트 기준 상대 경로로 유지하세요.
+사용자에게 보이는 변경은 `CHANGELOG.md`의 `Unreleased`에 추가하세요.
 
 ## 커밋 스타일
 
