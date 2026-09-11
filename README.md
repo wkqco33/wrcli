@@ -19,6 +19,15 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - 무한 중첩 서브커맨드 + 알리아스
 - 타입 안전 플래그 (`bool`, `string`, `int`, `float`, `string[]`, `int[]`)
 - persistent 플래그 — 루트에 등록하면 모든 서브커맨드에 자동 전파
+- **숨김(`hidden`)** 커맨드·플래그 — help/completion에서 제외, 실행은 유지
+- **Deprecated** 커맨드·플래그 — 사용 시 stderr 경고
+- **플래그 제약 그룹**: `mutually_exclusive`, `required_together`, `one_required`
+- **오타 제안(`Did you mean`)** — 미등록 커맨드/플래그에 편집 거리 기반 후보 제시, `Command::suggest_for`
+- **동적 completion** — `Command::complete` / `completion_request` / `arg_candidates`
+- **CSV 슬라이스 플래그** — `Flag::comma_separated()`로 `--tag a,b,c` 분리
+- **부모 로컬 플래그** — `app --profile prod deploy`처럼 서브커맨드 앞에서도 파싱
+- **usage 힌트** — `Command::usage_args("<name>")`
+- **종료 코드 분류**: `WrCliError::exit_code()` / `is_usage_error()`, `Command::execute_or_exit()`
 - 5계층 설정 우선순위: 기본값 → 파일(TOML/JSON/YAML/INI/dotenv/properties) → 환경변수 → CLI 플래그 → 명시 값(`set`)
 - 설정 파일 **자동 탐지** (`set_config_file`, 형식/경로 자동 판별)
 - **별칭(`register_alias`)**, 커스텀 키 구분자, env key replacer, 빈 env 처리 제어
@@ -31,6 +40,7 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - **설정 파일 감시**: `on_config_change`, `watch_config`, `ConfigWatcher`
 - **포맷**: TOML·JSON(기본), YAML·INI·dotenv·Java properties(피처)
 - 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
+- `CommandContext` getter: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_int_vec`/`get_duration`/`get_time`/`get_size_in_bytes`/`get_string_map`/`is_set`
 - **Completion 스크립트 생성** (bash / zsh / fish)
 - 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`
 - `execute_with()` — 실제 argv 없이 인수를 직접 주입해 단위 테스트 가능
@@ -126,6 +136,8 @@ cargo run --example styled
 | 설정 파일 감시 | [docs/GUIDE.md#설정-파일-감시](docs/GUIDE.md#설정-파일-감시) |
 | Completion 생성 | [docs/GUIDE.md#completion-스크립트-생성](docs/GUIDE.md#completion-스크립트-생성) |
 | 라이프사이클 훅 | [docs/GUIDE.md#라이프사이클-훅](docs/GUIDE.md#라이프사이클-훅) |
+| 숨김 · Deprecated · 제약 | [docs/GUIDE.md#숨김--deprecated--플래그-제약](docs/GUIDE.md#숨김--deprecated--플래그-제약) |
+| 동적 completion | [docs/GUIDE.md#동적-completion](docs/GUIDE.md#동적-completion) |
 | CommandContext | [docs/GUIDE.md#commandcontext](docs/GUIDE.md#commandcontext) |
 | 에러 처리 | [docs/GUIDE.md#에러-처리](docs/GUIDE.md#에러-처리) |
 | 테스트 작성 | [docs/GUIDE.md#테스트-작성](docs/GUIDE.md#테스트-작성) |

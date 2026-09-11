@@ -148,3 +148,118 @@ fn local_flag_not_visible_in_sibling_subcommand() {
         .unwrap_err();
     assert!(matches!(err, WrCliError::UnknownFlag { .. }));
 }
+
+#[test]
+fn hidden_subcommand_still_dispatches() {
+    let ran = Arc::new(Mutex::new(false));
+    let ran2 = ran.clone();
+    Command::new("app")
+        .subcommand(
+            Command::new("secret")
+                .hidden()
+                .on_run(move |_| *ran2.lock().unwrap() = true),
+        )
+        .execute_with(args("secret"))
+        .unwrap();
+    assert!(*ran.lock().unwrap());
+}
+
+// ── 부모 로컬 플래그 (서브커맨드 앞) ─────────────────────────────────────────
+
+#[test]
+fn parent_local_flag_before_subcommand_is_parsed() {
+    let out = Arc::new(Mutex::new(String::new()));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .subcommand(Command::new("sub").on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_string("name").unwrap_or("").to_owned();
+        }))
+        .execute_with(args("--name Alice sub"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), "Alice");
+}
+
+#[test]
+fn parent_local_flag_short_form_before_subcommand() {
+    let out = Arc::new(Mutex::new(0i64));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("count", FlagValue::Int(0), "count").short('c'))
+        .subcommand(Command::new("sub").on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_int("count").unwrap_or(0);
+        }))
+        .execute_with(args("-c 7 sub"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), 7);
+}
+
+#[test]
+fn parent_required_flag_not_enforced_for_subcommand() {
+    Command::new("app")
+        .flag(Flag::new("token", FlagValue::String(String::new()), "token").required())
+        .subcommand(Command::new("sub").on_run(|_| {}))
+        .execute_with(args("sub"))
+        .unwrap();
+}
+
+#[test]
+fn parent_local_flag_after_subcommand_is_unknown() {
+    let err = Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .subcommand(Command::new("sub").on_run(|_| {}))
+        .execute_with(args("sub --name Alice"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::UnknownFlag { .. }));
+}
+
+#[test]
+fn child_flag_overrides_parent_local_flag() {
+    let out = Arc::new(Mutex::new(String::new()));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new(
+            "name",
+            FlagValue::String(String::new()),
+            "parent name",
+        ))
+        .subcommand(
+            Command::new("sub")
+                .flag(Flag::new(
+                    "name",
+                    FlagValue::String(String::new()),
+                    "child name",
+                ))
+                .on_run(move |ctx| {
+                    *out2.lock().unwrap() = ctx.flags.get_string("name").unwrap_or("").to_owned();
+                }),
+        )
+        .execute_with(args("--name parent sub --name child"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), "child");
+}
+
+#[test]
+fn help_flag_after_parent_flag_still_works() {
+    // 메타 플래그가 있으면 부모 플래그를 소비하지 않고 리프가 help를 처리한다.
+    Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .subcommand(Command::new("sub").on_run(|_| {}))
+        .execute_with(args("--name value --help sub"))
+        .unwrap();
+}
+
+#[test]
+fn parent_flag_value_does_not_leak_into_sibling_help() {
+    // 부모 로컬 플래그는 하위 help의 Flags 목록에 나타나면 안 된다(정의는 상속되지 않음).
+    let leaked = Arc::new(Mutex::new(false));
+    let leaked2 = leaked.clone();
+    Command::new("app")
+        .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
+        .subcommand(Command::new("sub").on_run(move |ctx| {
+            *leaked2.lock().unwrap() = ctx.flags.get_flag("name").is_some();
+        }))
+        .execute_with(args("--name value sub"))
+        .unwrap();
+    assert!(!*leaked.lock().unwrap());
+}

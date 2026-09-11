@@ -33,11 +33,21 @@ pub struct Command {
     pub(crate) long: String,
     pub(crate) version: Option<String>,
     pub(crate) aliases: Vec<String>,
+    pub(crate) hidden: bool,
+    pub(crate) deprecated: Option<String>,
+    pub(crate) suggest_for: Vec<String>,
+    /// `--help`의 usage 줄에 표시할 포지셔널 힌트 (예: `"<name>"`).
+    pub(crate) usage_args: Option<String>,
 
     pub(crate) flags: FlagSet,
     pub(crate) subcommands: Vec<Command>,
 
     pub(crate) arg_validator: Option<args::ArgValidator>,
+    /// 포지셔널 인수 동적 completion 후보 생성기.
+    pub(crate) arg_candidates: Option<ArgCandidatesFn>,
+    pub(crate) mutually_exclusive: Vec<Vec<String>>,
+    pub(crate) required_together: Vec<Vec<String>>,
+    pub(crate) one_required: Vec<Vec<String>>,
 
     pub(crate) persistent_pre_run: Option<RunFn>,
     pub(crate) pre_run: Option<RunFn>,
@@ -62,9 +72,17 @@ impl Command {
             long: String::new(),
             version: None,
             aliases: Vec::new(),
+            hidden: false,
+            deprecated: None,
+            suggest_for: Vec::new(),
+            usage_args: None,
             flags,
             subcommands: Vec::new(),
             arg_validator: None,
+            arg_candidates: None,
+            mutually_exclusive: Vec::new(),
+            required_together: Vec::new(),
+            one_required: Vec::new(),
             persistent_pre_run: None,
             pre_run: None,
             run: None,
@@ -96,6 +114,50 @@ impl Command {
     /// 커맨드 별칭 추가.
     pub fn alias(mut self, a: &str) -> Self {
         self.aliases.push(a.to_owned());
+        self
+    }
+
+    /// help와 completion 목록에서 이 커맨드를 숨김 (실행은 계속 가능).
+    pub fn hidden(mut self) -> Self {
+        self.hidden = true;
+        self
+    }
+
+    /// deprecated 커맨드로 표시. 실행 시 stderr에 경고를 출력.
+    pub fn deprecated(mut self, msg: &str) -> Self {
+        self.deprecated = Some(msg.to_owned());
+        self
+    }
+
+    /// 오타 입력 시 이 커맨드를 제안할 별칭 추가 (Cobra의 `SuggestFor`).
+    ///
+    /// 실제 별칭과 달리 실행되지 않고, `Did you mean` 후보로만 사용된다.
+    pub fn suggest_for(mut self, name: &str) -> Self {
+        self.suggest_for.push(name.to_owned());
+        self
+    }
+
+    /// `--help`의 usage 줄에 표시할 포지셔널 힌트 (예: `"<name>"`, `"SRC DST"`).
+    pub fn usage_args(mut self, hint: &str) -> Self {
+        self.usage_args = Some(hint.to_owned());
+        self
+    }
+
+    /// 이 그룹의 플래그 중 둘 이상을 함께 지정하면 오류.
+    pub fn mutually_exclusive(mut self, flags: &[&str]) -> Self {
+        self.mutually_exclusive.push(names(flags));
+        self
+    }
+
+    /// 이 그룹의 플래그는 일부만 지정하면 오류 (전부 또는 전무).
+    pub fn required_together(mut self, flags: &[&str]) -> Self {
+        self.required_together.push(names(flags));
+        self
+    }
+
+    /// 이 그룹에서 최소 하나의 플래그를 지정해야 함.
+    pub fn one_required(mut self, flags: &[&str]) -> Self {
+        self.one_required.push(names(flags));
         self
     }
 
@@ -134,6 +196,17 @@ impl Command {
     /// 위치 인자 검증기 설정. [`args`] 모듈의 내장 함수 참조.
     pub fn args(mut self, validator: args::ArgValidator) -> Self {
         self.arg_validator = Some(validator);
+        self
+    }
+
+    /// 포지셔널 인수 동적 completion 후보를 제공하는 함수 등록.
+    ///
+    /// 이미 입력된 포지셔널 인수 목록을 받아 후보를 반환한다.
+    pub fn arg_candidates<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&[String]) -> Vec<String> + Send + Sync + 'static,
+    {
+        self.arg_candidates = Some(Box::new(f));
         self
     }
 
@@ -199,3 +272,18 @@ impl Command {
         self
     }
 }
+
+/// 리프 커맨드 실행 전에 검증할 플래그 제약 그룹.
+pub(crate) enum FlagGroup {
+    MutuallyExclusive(Vec<String>),
+    RequiredTogether(Vec<String>),
+    OneRequired(Vec<String>),
+}
+
+/// `&[&str]`을 소유 `Vec<String>`으로 변환.
+fn names(flags: &[&str]) -> Vec<String> {
+    flags.iter().map(|f| (*f).to_owned()).collect()
+}
+
+/// 포지셔널 인수 동적 completion 후보 생성기 타입.
+pub(crate) type ArgCandidatesFn = Box<dyn Fn(&[String]) -> Vec<String> + Send + Sync>;

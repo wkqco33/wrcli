@@ -1,5 +1,20 @@
+#[cfg(any(
+    feature = "toml-config",
+    feature = "json-config",
+    feature = "dotenv-config",
+    feature = "properties-config",
+    feature = "ini-config"
+))]
 use super::ConfigValue;
-use super::settings::{SettingsEntry, SettingsMap};
+#[cfg(any(
+    feature = "toml-config",
+    feature = "json-config",
+    feature = "dotenv-config",
+    feature = "properties-config",
+    feature = "ini-config"
+))]
+use super::settings::SettingsEntry;
+use super::settings::SettingsMap;
 use crate::error::{Result, WrCliError};
 
 /// 중첩 설정 트리를 `ext` 포맷의 문자열로 직렬화.

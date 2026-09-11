@@ -9,10 +9,14 @@ pub enum WrCliError {
     UnknownFlag {
         flag: String,
         command: String,
+        /// 편집 거리 기반 근접 후보 (비어 있을 수 있음).
+        suggestions: Vec<String>,
     },
     UnknownSubcommand {
         name: String,
         parent: String,
+        /// 편집 거리 기반 근접 후보 (비어 있을 수 있음).
+        suggestions: Vec<String>,
     },
     MissingRequiredFlag(String),
     /// 플래그는 제공되었지만 값이 누락됨 (예: `--name` without value).
@@ -56,6 +60,23 @@ pub enum WrCliError {
 
     /// `watch_config` 선행 조건(콜백/로드된 파일)이 충족되지 않음.
     ConfigWatchNotReady,
+
+    /// `mutually_exclusive` 그룹에서 둘 이상의 플래그가 동시에 지정됨.
+    MutuallyExclusiveFlags {
+        group: Vec<String>,
+        provided: Vec<String>,
+    },
+
+    /// `required_together` 그룹의 일부만 지정됨.
+    RequiredFlagsTogether {
+        group: Vec<String>,
+        missing: Vec<String>,
+    },
+
+    /// `one_required` 그룹에서 아무 플래그도 지정되지 않음.
+    OneFlagRequired {
+        group: Vec<String>,
+    },
 }
 
 impl WrCliError {
@@ -63,24 +84,56 @@ impl WrCliError {
     pub fn user<E: std::error::Error + Send + Sync + 'static>(e: E) -> Self {
         WrCliError::UserError(Box::new(e))
     }
+
+    /// 사용법(usage) 오류 여부. true면 프로세스 종료 코드는 [`WrCliError::exit_code`]에서 2.
+    pub fn is_usage_error(&self) -> bool {
+        matches!(
+            self,
+            WrCliError::UnknownFlag { .. }
+                | WrCliError::UnknownSubcommand { .. }
+                | WrCliError::MissingRequiredFlag(_)
+                | WrCliError::MissingFlagValue(_)
+                | WrCliError::InvalidFlagValue { .. }
+                | WrCliError::ArgValidationFailed(_)
+                | WrCliError::CommandHasNoRunner(_)
+                | WrCliError::MutuallyExclusiveFlags { .. }
+                | WrCliError::RequiredFlagsTogether { .. }
+                | WrCliError::OneFlagRequired { .. }
+        )
+    }
+
+    /// 프로세스 종료에 사용할 코드. 사용법 오류는 2, 그 외는 1.
+    pub fn exit_code(&self) -> i32 {
+        if self.is_usage_error() { 2 } else { 1 }
+    }
 }
 
 impl fmt::Display for WrCliError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            WrCliError::UnknownFlag { flag, command } => {
+            WrCliError::UnknownFlag {
+                flag,
+                command,
+                suggestions,
+            } => {
                 write!(
                     f,
                     "unknown flag '{}' for '{}'  Run with --help for usage.",
                     flag, command
-                )
+                )?;
+                write_suggestions(f, suggestions, "--")
             }
-            WrCliError::UnknownSubcommand { name, parent } => {
+            WrCliError::UnknownSubcommand {
+                name,
+                parent,
+                suggestions,
+            } => {
                 write!(
                     f,
                     "unknown command '{}' for '{}'  Run with --help for available commands.",
                     name, parent
-                )
+                )?;
+                write_suggestions(f, suggestions, "")
             }
             WrCliError::MissingRequiredFlag(name) => {
                 write!(
@@ -171,6 +224,53 @@ impl fmt::Display for WrCliError {
                     "watch_config requires on_config_change() and a loaded config file"
                 )
             }
+            WrCliError::MutuallyExclusiveFlags { group, provided } => {
+                write!(
+                    f,
+                    "flags {} are mutually exclusive (got {})",
+                    format_flag_list(group),
+                    format_flag_list(provided)
+                )
+            }
+            WrCliError::RequiredFlagsTogether { group, missing } => {
+                write!(
+                    f,
+                    "flags {} must be used together (missing {})",
+                    format_flag_list(group),
+                    format_flag_list(missing)
+                )
+            }
+            WrCliError::OneFlagRequired { group } => {
+                write!(f, "one of {} is required", format_flag_list(group))
+            }
+        }
+    }
+}
+
+/// 플래그 이름 목록을 `--a, --b` 형태로 포맷.
+fn format_flag_list(flags: &[String]) -> String {
+    flags
+        .iter()
+        .map(|f| format!("--{}", f))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// 오타 제안 블록을 출력.
+fn write_suggestions(
+    f: &mut fmt::Formatter<'_>,
+    suggestions: &[String],
+    prefix: &str,
+) -> fmt::Result {
+    match suggestions {
+        [] => Ok(()),
+        [only] => write!(f, "\n\nDid you mean this?\n\t{}{}", prefix, only),
+        many => {
+            write!(f, "\n\nDid you mean one of these?")?;
+            for s in many {
+                write!(f, "\n\t{}{}", prefix, s)?;
+            }
+            Ok(())
         }
     }
 }

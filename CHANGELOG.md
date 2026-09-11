@@ -5,6 +5,44 @@
 
 ## [Unreleased]
 
+### Added
+
+- **오타 제안**: 미등록 서브커맨드/플래그에 편집 거리 기반 `Did you mean` 후보를
+  에러 메시지에 포함 (`src/suggest.rs`).
+- **숨김**: `Command::hidden()`, `Flag::hidden()` — help/completion/제안에서 제외,
+  파싱·실행은 유지.
+- **Deprecated**: `Command::deprecated(msg)`, `Flag::deprecated(msg)` — 사용 시 stderr 경고.
+- **플래그 제약 그룹**: `Command::mutually_exclusive`, `required_together`,
+  `one_required`와 전용 에러 3종.
+- **종료 코드**: `WrCliError::is_usage_error()`, `WrCliError::exit_code()`
+  (사용법 오류 2, 그 외 1), `Command::execute_or_exit()`.
+- **CommandContext getter 확장**: `get_uint`, `get_int_vec`, `get_duration`,
+  `get_time`, `get_size_in_bytes`, `get_string_map`, `is_set`.
+- `FlagSet::get_uint`.
+- **동적 completion**: `Command::complete`, `Command::completion_request`(`__complete`
+  프로토콜), `Command::arg_candidates`.
+- **CSV 슬라이스 플래그**: `Flag::comma_separated()` — `--tag a,b,c`를 여러 값으로 분리.
+- **부모 로컬 플래그**: `app --profile prod deploy`처럼 서브커맨드 이름 앞의 부모
+  로컬 플래그를 부모가 소비하고 값을 리프 컨텍스트로 전달.
+- **usage 힌트**: `Command::usage_args("<name>")` — `--help`의 usage 줄에 포지셔널 힌트.
+- **`Command::suggest_for`**: 실행되지 않는 제안 전용 별칭 (Cobra `SuggestFor`).
+- `FlagSet::parse_partial`(부모 플래그 소비용, required 검증 생략), `FlagSet::inherit_values`.
+
+### Changed
+
+- help 출력이 상속된 persistent 플래그를 `Global Flags:` 섹션으로 분리 (Cobra 스타일).
+- help 플래그 행에 deprecated 플래그를 `(deprecated)`로 표시.
+- 서브커맨드 라우팅 시 부모 플래그를 부모 FlagSet으로 파싱하고, 그 값을 하위로
+  전달(`inherit_values`)해 `ctx.flags`에서 읽을 수 있게 함. `--help`/`--version`이
+  포함되면 기존처럼 리프가 처리.
+- `FlagSet::is_set`가 argv로 명시된 플래그만 `true`로 반환. 설정에서 시드된 값은
+  이제 `false`이며, Config 레이어 바인딩도 명시 입력에만 적용.
+- `WrCliError::UnknownFlag` / `UnknownSubcommand`에 `suggestions` 필드 추가.
+
+### Fixed
+
+- `no-default-features` 빌드에서 `config/writer.rs`의 미사용 import 경고 제거.
+
 ## [0.2.0] - 2026-09-12
 
 ### Added — Config (Viper 패리티)

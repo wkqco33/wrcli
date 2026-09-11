@@ -10,6 +10,10 @@ fn app() -> Command {
     Command::cargo_bin("testapp").expect("testapp binary not found")
 }
 
+fn exitapp() -> Command {
+    Command::cargo_bin("exitapp").expect("exitapp binary not found")
+}
+
 // ── greet subcommand ─────────────────────────────────────────────────────────
 
 #[test]
@@ -153,4 +157,90 @@ fn unknown_subcommand_exits_nonzero() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("unknown command"));
+}
+
+// ── hidden / deprecated / global flags ───────────────────────────────────────
+
+#[test]
+fn hidden_command_runs_but_is_not_listed() {
+    app().args(["secret"]).assert().success().stdout("secret\n");
+    app()
+        .args(["--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("secret").not())
+        .stdout(predicate::str::contains("--internal").not());
+}
+
+#[test]
+fn subcommand_help_lists_global_flags() {
+    app()
+        .args(["greet", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Global Flags:"))
+        .stdout(predicate::str::contains("--verbose"));
+}
+
+#[test]
+fn deprecated_command_warns_on_stderr() {
+    app()
+        .args(["old"])
+        .assert()
+        .success()
+        .stdout("old\n")
+        .stderr(predicate::str::contains("deprecated"));
+}
+
+#[test]
+fn usage_shows_args_hint() {
+    app()
+        .args(["greet", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("testapp greet <name> [flags]"));
+}
+
+#[test]
+fn help_marks_deprecated_flag() {
+    app()
+        .args(["greet", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(deprecated)"));
+}
+
+#[test]
+fn deprecated_flag_warns_on_stderr() {
+    app()
+        .args(["greet", "--legacy", "Alice"])
+        .assert()
+        .success()
+        .stdout("Hello, Alice!\n")
+        .stderr(predicate::str::contains("deprecated"));
+}
+
+// ── execute_or_exit ──────────────────────────────────────────────────────────
+
+#[test]
+fn execute_or_exit_success() {
+    exitapp().args(["ok"]).assert().success().stdout("ok\n");
+}
+
+#[test]
+fn execute_or_exit_usage_error_exits_two() {
+    exitapp()
+        .args(["--bogus"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("Error:"));
+}
+
+#[test]
+fn execute_or_exit_user_error_exits_one() {
+    exitapp()
+        .args(["fail"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("boom"));
 }

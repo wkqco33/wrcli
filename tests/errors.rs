@@ -118,6 +118,85 @@ fn error_display_unknown_subcommand() {
 }
 
 #[test]
+fn unknown_subcommand_suggests_close_match() {
+    let err = Command::new("app")
+        .subcommand(Command::new("greet").on_run(|_| {}))
+        .subcommand(Command::new("echo").on_run(|_| {}))
+        .execute_with(args("gret"))
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("Did you mean this?"), "msg: {msg}");
+    assert!(msg.contains("greet"), "msg: {msg}");
+}
+
+#[test]
+fn unknown_subcommand_no_suggestion_when_unrelated() {
+    let err = Command::new("app")
+        .subcommand(Command::new("greet").on_run(|_| {}))
+        .execute_with(args("zzzzzzzz"))
+        .unwrap_err();
+    assert!(!err.to_string().contains("Did you mean"));
+}
+
+#[test]
+fn unknown_subcommand_suggestion_skips_hidden() {
+    let err = Command::new("app")
+        .subcommand(Command::new("secret").hidden().on_run(|_| {}))
+        .execute_with(args("secrey"))
+        .unwrap_err();
+    assert!(!err.to_string().contains("Did you mean"));
+}
+
+#[test]
+fn unknown_flag_suggests_close_match() {
+    let err = Command::new("app")
+        .flag(Flag::new("verbose", FlagValue::Bool(false), "verbose"))
+        .on_run(|_| {})
+        .execute_with(args("--verbos"))
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("Did you mean this?"), "msg: {msg}");
+    assert!(msg.contains("verbose"), "msg: {msg}");
+}
+
+#[test]
+fn unknown_flag_no_suggestion_when_unrelated() {
+    let err = Command::new("app")
+        .flag(Flag::new("verbose", FlagValue::Bool(false), "verbose"))
+        .on_run(|_| {})
+        .execute_with(args("--zzzzzzzz"))
+        .unwrap_err();
+    assert!(!err.to_string().contains("Did you mean"));
+}
+
+#[test]
+fn unknown_flag_suggestion_skips_hidden() {
+    let err = Command::new("app")
+        .flag(Flag::new("secret", FlagValue::Bool(false), "secret").hidden())
+        .on_run(|_| {})
+        .execute_with(args("--secrey"))
+        .unwrap_err();
+    assert!(!err.to_string().contains("Did you mean"));
+}
+
+#[test]
+fn usage_errors_have_exit_code_two() {
+    let err = Command::new("app")
+        .on_run(|_| {})
+        .execute_with(args("--bogus"))
+        .unwrap_err();
+    assert_eq!(err.exit_code(), 2);
+    assert!(err.is_usage_error());
+}
+
+#[test]
+fn user_errors_have_exit_code_one() {
+    let err = WrCliError::user(std::io::Error::other("boom"));
+    assert_eq!(err.exit_code(), 1);
+    assert!(!err.is_usage_error());
+}
+
+#[test]
 fn error_display_missing_required_flag() {
     let err = Command::new("app")
         .flag(Flag::new("name", FlagValue::String(String::new()), "name").required())
@@ -236,4 +315,29 @@ fn config_parse_error_malformed_json() {
     let msg = err.to_string();
     assert!(msg.contains("failed to parse config"));
     assert!(msg.contains("bad.json"));
+}
+
+#[test]
+fn suggest_for_maps_explicit_alias() {
+    let err = Command::new("app")
+        .subcommand(
+            Command::new("remove")
+                .suggest_for("delete")
+                .suggest_for("rm")
+                .on_run(|_| {}),
+        )
+        .execute_with(args("delete"))
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("Did you mean this?"), "msg: {msg}");
+    assert!(msg.contains("remove"), "msg: {msg}");
+}
+
+#[test]
+fn suggest_for_is_case_insensitive() {
+    let err = Command::new("app")
+        .subcommand(Command::new("remove").suggest_for("delete").on_run(|_| {}))
+        .execute_with(args("DELETE"))
+        .unwrap_err();
+    assert!(err.to_string().contains("remove"));
 }

@@ -8,6 +8,11 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 현재 공개 API가 제공하는 기능은 다음과 같습니다.
 
 - 커맨드 트리, 알리아스, persistent 플래그, 라이프사이클 훅, `--help`/`--version`.
+- 숨김(`hidden`)·Deprecated 커맨드/플래그, `mutually_exclusive`/`required_together`/`one_required` 제약.
+- 미등록 커맨드/플래그에 대한 편집 거리 기반 오타 제안(`Did you mean`), `suggest_for`.
+- 서브커맨드 앞 부모 로컬 플래그 파싱, `usage_args` 힌트, CSV(`comma_separated`) 슬라이스 플래그.
+- 동적 completion: `complete`, `completion_request`(`__complete`), `arg_candidates`.
+- 종료 코드: `WrCliError::is_usage_error()`/`exit_code()`, `Command::execute_or_exit()`.
 - 타입 지정 플래그: `Bool`, `String`, `Int`, `Float`, `StringVec`, `IntVec`.
 - 포지셔널 인수 validator: `range_args`, `valid_args` 등.
 - 5계층 설정 우선순위: 기본값 → 설정 파일 → 환경변수 → CLI 플래그 → `set` 명시 값.
@@ -124,6 +129,9 @@ cargo fmt -- --check
 - **별칭/구분자**: `register_alias`로 키 별칭을 연결하고 `set_key_delimiter`로 중첩 키 구분자를 바꿉니다.
 - **env 세부**: `set_env_key_replacer`로 env 변수명 치환을, `allow_empty_env`로 빈 값 처리를 제어합니다(기본은 빈 값도 사용).
 - **Persistent 플래그**: `Command::persistent_flag()`로 등록하며 서브커맨드로 전파됩니다.
+  상속된 플래그는 help에서 `Global Flags:` 섹션으로 분리됩니다.
+- **플래그 `is_set`**: argv로 명시된 플래그만 `true`입니다. 설정에서 시드된 값은 `false`이며
+  Config 플래그 레이어 바인딩에서도 제외됩니다.
 - **점 표기 키**: 설정은 `"server.port"`를 지원하고, 환경변수는 `.`/`-`를 `_`로 바꾸고 대문자로 만듭니다.
 - **설정 탐색**: 명시적 `set_config_file`이 우선하며, 그렇지 않으면 설정한 이름/경로와 지원
   확장자를 검색합니다. 기존 API가 그렇게 동작하는 선택적 파일 누락은 치명적으로 만들지 마세요.

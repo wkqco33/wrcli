@@ -1,12 +1,16 @@
 //! Completion script generation for bash/zsh/fish.
 
 use super::Command;
+use super::dispatch::takes_value;
 use crate::error::Result;
 use crate::flag::Flag;
 
 /// Recursively collect subcommand names reachable from `cmd`.
 fn collect_commands(cmd: &Command, out: &mut Vec<String>) {
     for sub in &cmd.subcommands {
+        if sub.hidden {
+            continue;
+        }
         out.push(sub.name.clone());
         collect_commands(sub, out);
     }
@@ -15,6 +19,9 @@ fn collect_commands(cmd: &Command, out: &mut Vec<String>) {
 /// Collect flags for a command and all its subcommands, deduplicated by name.
 fn collect_flags<'a>(cmd: &'a Command, out: &mut Vec<&'a Flag>) {
     for flag in cmd.flags.flags_iter() {
+        if flag.hidden {
+            continue;
+        }
         if !out.iter().any(|f| f.name == flag.name) {
             out.push(flag);
         }
@@ -155,5 +162,129 @@ impl Command {
             }
         }
         Ok(out)
+    }
+
+    /// 현재 입력 중인 토큰에 대한 동적 completion 후보를 계산.
+    ///
+    /// `args`는 프로그램 이름 이후의 인자들이며, 마지막 원소가 완성 중인 토큰이다.
+    /// 하위 커맨드로 이동하며 플래그/서브커맨드/`arg_candidates` 후보를 반환한다.
+    pub fn complete(&self, args: &[String]) -> Vec<String> {
+        let current = args.last().cloned().unwrap_or_default();
+        let prior = &args[..args.len().saturating_sub(1)];
+
+        let mut cmd = self;
+        let mut positional: Vec<String> = Vec::new();
+        let mut i = 0;
+        while i < prior.len() {
+            let tok = &prior[i];
+            if tok == "--" {
+                positional.extend(prior[i + 1..].iter().cloned());
+                break;
+            }
+            if let Some(rest) = tok.strip_prefix("--") {
+                let (name, has_eq) = match rest.split_once('=') {
+                    Some((n, _)) => (n, true),
+                    None => (rest, false),
+                };
+                let consumes_next = !has_eq
+                    && cmd
+                        .flags
+                        .get_flag(name)
+                        .map(|f| takes_value(&f.default))
+                        .unwrap_or(false);
+                i += if consumes_next { 2 } else { 1 };
+                continue;
+            }
+            if tok.starts_with('-') && tok.len() > 1 {
+                i += 1;
+                continue;
+            }
+            if let Some(sub) = cmd
+                .subcommands
+                .iter()
+                .find(|c| !c.hidden && (c.name == *tok || c.aliases.iter().any(|a| a == tok)))
+            {
+                cmd = sub;
+                positional.clear();
+                i += 1;
+                continue;
+            }
+            positional.push(tok.clone());
+            i += 1;
+        }
+
+        if let Some(prefix) = current.strip_prefix("--") {
+            let mut out: Vec<String> = cmd
+                .flags
+                .flags_iter()
+                .filter(|f| !f.hidden && f.name.starts_with(prefix))
+                .map(|f| format!("--{}", f.name))
+                .collect();
+            if "help".starts_with(prefix) {
+                out.push("--help".to_owned());
+            }
+            if cmd.version.is_some() && "version".starts_with(prefix) {
+                out.push("--version".to_owned());
+            }
+            return out;
+        }
+
+        if let Some(prefix) = current.strip_prefix('-') {
+            let first = prefix.chars().next();
+            let mut out: Vec<String> = cmd
+                .flags
+                .flags_iter()
+                .filter(|f| !f.hidden)
+                .filter_map(|f| f.short.map(|c| (c, format!("-{c}"))))
+                .filter(|(c, _)| first.map(|p| *c == p).unwrap_or(true))
+                .map(|(_, s)| s)
+                .collect();
+            if first.map(|p| p == 'h').unwrap_or(true) {
+                out.push("-h".to_owned());
+            }
+            if cmd.version.is_some() && first.map(|p| p == 'V').unwrap_or(true) {
+                out.push("-V".to_owned());
+            }
+            return out;
+        }
+
+        let mut out: Vec<String> = cmd
+            .subcommands
+            .iter()
+            .filter(|c| !c.hidden)
+            .map(|c| c.name.clone())
+            .collect();
+        if let Some(f) = &cmd.arg_candidates {
+            out.extend(f(&positional));
+        }
+        out.retain(|c| c.starts_with(&current));
+        out
+    }
+
+    /// `__complete` 프로토콜 요청이면 후보를 반환.
+    ///
+    /// `args`는 프로그램 이름 이후의 인자들이다. 첫 토큰이 `__complete`가 아니면 `None`.
+    ///
+    /// ```no_run
+    /// # use wrcli::Command;
+    /// let cmd = Command::new("myapp").subcommand(Command::new("serve"));
+    /// let args: Vec<String> = std::env::args().skip(1).collect();
+    /// if let Some(candidates) = cmd.completion_request(args) {
+    ///     for c in candidates { println!("{}", c); }
+    ///     return;
+    /// }
+    /// cmd.execute().unwrap();
+    /// ```
+    pub fn completion_request(&self, args: Vec<String>) -> Option<Vec<String>> {
+        if args.first().map(String::as_str) != Some("__complete") {
+            return None;
+        }
+        let rest = &args[1..];
+        let words = if rest.is_empty() {
+            vec![String::new()]
+        } else {
+            rest.to_vec()
+        };
+        Some(self.complete(&words))
     }
 }

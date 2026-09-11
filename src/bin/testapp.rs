@@ -6,6 +6,8 @@
 //! testapp echo [args...]
 //! testapp fail [--code N]
 //! testapp tags [--tag <value>...] (StringVec flag demo)
+//! testapp secret (hidden command)
+//! testapp old (deprecated command)
 //! ```
 
 use wrcli::args::{arbitrary_args, minimum_n_args};
@@ -18,11 +20,17 @@ fn main() {
         .persistent_flag(
             Flag::new("verbose", FlagValue::Bool(false), "enable verbose output").short('v'),
         )
+        .flag(Flag::new("internal", FlagValue::Bool(false), "internal use only").hidden())
         .subcommand(
             Command::new("greet")
                 .short("Print a greeting")
+                .usage_args("<name>")
                 .flag(Flag::new("upper", FlagValue::Bool(false), "uppercase output").short('u'))
                 .flag(Flag::new("count", FlagValue::Int(1), "repeat count"))
+                .flag(
+                    Flag::new("legacy", FlagValue::Bool(false), "legacy mode")
+                        .deprecated("use --upper"),
+                )
                 .args(minimum_n_args(1))
                 .on_run(|ctx| {
                     let name = &ctx.args[0];
@@ -71,6 +79,18 @@ fn main() {
                         println!("{}", tag);
                     }
                 }),
+        )
+        .subcommand(
+            Command::new("secret")
+                .short("Hidden command")
+                .hidden()
+                .on_run(|_| println!("secret")),
+        )
+        .subcommand(
+            Command::new("old")
+                .short("Deprecated command")
+                .deprecated("use greet instead")
+                .on_run(|_| println!("old")),
         )
         .execute();
 

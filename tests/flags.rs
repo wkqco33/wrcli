@@ -319,3 +319,223 @@ fn flag_value_starting_with_dash() {
         .unwrap();
     assert_eq!(*out.lock().unwrap(), "-foo");
 }
+
+// ── hidden / deprecated / 제약 그룹 ──────────────────────────────────────────
+
+#[test]
+fn hidden_flag_still_parses() {
+    let out = Arc::new(Mutex::new(false));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("secret", FlagValue::Bool(false), "secret").hidden())
+        .on_run(move |ctx| *out2.lock().unwrap() = ctx.flags.get_bool("secret").unwrap())
+        .execute_with(args("--secret"))
+        .unwrap();
+    assert!(*out.lock().unwrap());
+}
+
+#[test]
+fn mutually_exclusive_flags_reject_both() {
+    let err = Command::new("app")
+        .flag(Flag::new("json", FlagValue::Bool(false), "json"))
+        .flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
+        .mutually_exclusive(&["json", "yaml"])
+        .on_run(|_| {})
+        .execute_with(args("--json --yaml"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::MutuallyExclusiveFlags { .. }));
+    let msg = err.to_string();
+    assert!(msg.contains("--json"));
+    assert!(msg.contains("--yaml"));
+}
+
+#[test]
+fn mutually_exclusive_flags_allow_single() {
+    Command::new("app")
+        .flag(Flag::new("json", FlagValue::Bool(false), "json"))
+        .flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
+        .mutually_exclusive(&["json", "yaml"])
+        .on_run(|_| {})
+        .execute_with(args("--json"))
+        .unwrap();
+}
+
+#[test]
+fn mutually_exclusive_flags_allow_none() {
+    Command::new("app")
+        .flag(Flag::new("json", FlagValue::Bool(false), "json"))
+        .flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
+        .mutually_exclusive(&["json", "yaml"])
+        .on_run(|_| {})
+        .execute_with(args(""))
+        .unwrap();
+}
+
+#[test]
+fn required_together_flags_reject_partial() {
+    let err = Command::new("app")
+        .flag(Flag::new("user", FlagValue::String(String::new()), "user"))
+        .flag(Flag::new("pass", FlagValue::String(String::new()), "pass"))
+        .required_together(&["user", "pass"])
+        .on_run(|_| {})
+        .execute_with(args("--user alice"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::RequiredFlagsTogether { .. }));
+    assert!(err.to_string().contains("--pass"));
+}
+
+#[test]
+fn required_together_flags_allow_all() {
+    Command::new("app")
+        .flag(Flag::new("user", FlagValue::String(String::new()), "user"))
+        .flag(Flag::new("pass", FlagValue::String(String::new()), "pass"))
+        .required_together(&["user", "pass"])
+        .on_run(|_| {})
+        .execute_with(args("--user alice --pass s3cret"))
+        .unwrap();
+}
+
+#[test]
+fn one_required_flags_reject_none() {
+    let err = Command::new("app")
+        .flag(Flag::new("json", FlagValue::Bool(false), "json"))
+        .flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
+        .one_required(&["json", "yaml"])
+        .on_run(|_| {})
+        .execute_with(args(""))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::OneFlagRequired { .. }));
+}
+
+#[test]
+fn one_required_flags_allow_one() {
+    Command::new("app")
+        .flag(Flag::new("json", FlagValue::Bool(false), "json"))
+        .flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
+        .one_required(&["json", "yaml"])
+        .on_run(|_| {})
+        .execute_with(args("--yaml"))
+        .unwrap();
+}
+
+#[test]
+fn flag_constraints_ignore_config_seeded_values() {
+    // 설정에서 시드된 값은 "사용자가 지정한 것"이 아니므로 제약을 발동시키지 않는다.
+    Command::new("app")
+        .flag(Flag::new("json", FlagValue::Bool(false), "json"))
+        .flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
+        .mutually_exclusive(&["json", "yaml"])
+        .with_config(
+            wrcli::Config::new()
+                .set_default("json", true)
+                .set_default("yaml", true),
+        )
+        .on_run(|_| {})
+        .execute_with(args(""))
+        .unwrap();
+}
+
+#[test]
+fn parent_local_constraint_does_not_break_subcommand() {
+    // 부모 로컬 플래그에 걸린 one_required 제약은 서브커맨드 실행 시 오탐하면 안 된다.
+    Command::new("app")
+        .flag(Flag::new("mode", FlagValue::String(String::new()), "mode"))
+        .one_required(&["mode"])
+        .subcommand(Command::new("sub").on_run(|_| {}))
+        .execute_with(args("sub"))
+        .unwrap();
+}
+
+#[test]
+fn persistent_constraint_applies_in_subcommand() {
+    let err = Command::new("app")
+        .persistent_flag(Flag::new("json", FlagValue::Bool(false), "json"))
+        .persistent_flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
+        .mutually_exclusive(&["json", "yaml"])
+        .subcommand(Command::new("sub").on_run(|_| {}))
+        .execute_with(args("sub --json --yaml"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::MutuallyExclusiveFlags { .. }));
+}
+
+// ── CSV 슬라이스 플래그 ─────────────────────────────────────────────────────
+
+#[test]
+fn comma_separated_string_vec_splits_values() {
+    let out: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("tag", FlagValue::StringVec(vec![]), "tags").comma_separated())
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_string_vec("tag").unwrap_or_default().to_vec();
+        })
+        .execute_with(args("--tag a,b,c"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), vec!["a", "b", "c"]);
+}
+
+#[test]
+fn comma_separated_int_vec_splits_values() {
+    let out: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(vec![]));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("num", FlagValue::IntVec(vec![]), "numbers").comma_separated())
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_int_vec("num").unwrap_or_default().to_vec();
+        })
+        .execute_with(args("--num 1,2,3"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), vec![1, 2, 3]);
+}
+
+#[test]
+fn comma_separated_flag_trims_whitespace() {
+    let out: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("tag", FlagValue::StringVec(vec![]), "tags").comma_separated())
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_string_vec("tag").unwrap_or_default().to_vec();
+        })
+        .execute_with(vec!["--tag".to_owned(), "a, b ,c".to_owned()])
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), vec!["a", "b", "c"]);
+}
+
+#[test]
+fn comma_separated_flag_supports_equals_and_repeats() {
+    let out: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("tag", FlagValue::StringVec(vec![]), "tags").comma_separated())
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_string_vec("tag").unwrap_or_default().to_vec();
+        })
+        .execute_with(args("--tag=a,b --tag c"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), vec!["a", "b", "c"]);
+}
+
+#[test]
+fn vector_flag_without_comma_separated_keeps_value_intact() {
+    let out: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("tag", FlagValue::StringVec(vec![]), "tags"))
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = ctx.flags.get_string_vec("tag").unwrap_or_default().to_vec();
+        })
+        .execute_with(args("--tag a,b"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), vec!["a,b"]);
+}
+
+#[test]
+fn comma_separated_int_vec_rejects_invalid_element() {
+    let err = Command::new("app")
+        .flag(Flag::new("num", FlagValue::IntVec(vec![]), "numbers").comma_separated())
+        .on_run(|_| {})
+        .execute_with(args("--num 1,x,3"))
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::InvalidFlagValue { .. }));
+}

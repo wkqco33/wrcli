@@ -35,6 +35,8 @@ pub mod error;
 pub mod flag;
 pub mod style;
 
+mod suggest;
+
 // Flatten the most-used types to crate root for ergonomics.
 pub use command::Command;
 pub use command::context::CommandContext;

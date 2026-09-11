@@ -6,7 +6,7 @@ use common::{EnvGuard, args, tempdir};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use wrcli::config::SettingsEntry;
-use wrcli::{Command, Config, ConfigValue, Flag, FlagValue, WrCliError};
+use wrcli::{Command, Config, ConfigValue, Flag, FlagValue};
 
 #[test]
 fn config_default_value() {
@@ -755,7 +755,7 @@ fn safe_write_config_as_refuses_existing() {
         .set_default("a", 1i64)
         .safe_write_config_as(&path)
         .unwrap_err();
-    assert!(matches!(err, WrCliError::ConfigFileExists(_)));
+    assert!(matches!(err, wrcli::WrCliError::ConfigFileExists(_)));
 }
 
 // ── Phase 4: Unmarshal (serde) ───────────────────────────────────────────────
@@ -907,4 +907,87 @@ fn watch_config_invokes_callback_on_change() {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(*hits.lock().unwrap() >= 1, "callback was not invoked");
+}
+
+// ── Flag is_set 정확성 & CommandContext getter 패리티 ────────────────────────
+
+#[test]
+fn flag_is_set_false_when_seeded_from_config() {
+    let (is_set, value) = (Arc::new(Mutex::new(true)), Arc::new(Mutex::new(0i64)));
+    let (is_set2, value2) = (is_set.clone(), value.clone());
+    Command::new("app")
+        .flag(Flag::new("port", FlagValue::Int(0), "port"))
+        .with_config(Config::new().set_default("port", 8080i64))
+        .on_run(move |ctx| {
+            *is_set2.lock().unwrap() = ctx.flags.is_set("port");
+            *value2.lock().unwrap() = ctx.flags.get_int("port").unwrap();
+        })
+        .execute_with(args(""))
+        .unwrap();
+    assert!(
+        !*is_set.lock().unwrap(),
+        "config seed must not count as user-set"
+    );
+    assert_eq!(*value.lock().unwrap(), 8080, "value is still seeded");
+}
+
+#[test]
+fn context_typed_getters_fall_through_to_config() {
+    let out = Arc::new(Mutex::new(String::new()));
+    let out2 = out.clone();
+    Command::new("app")
+        .with_config(
+            Config::new()
+                .set_default("timeout", "30s")
+                .set_default("ratio", 1.5f64)
+                .set_default("limit", 12i64)
+                .set_default("nums", vec![1i64, 2, 3])
+                .set_default("tags", vec!["a", "b"])
+                .set_default("max_size", "1KB")
+                .set_default("server.host", "127.0.0.1"),
+        )
+        .on_run(move |ctx| {
+            let duration = ctx.get_duration("timeout").unwrap();
+            let ratio = ctx.get_float("ratio").unwrap();
+            let limit = ctx.get_uint("limit").unwrap();
+            let nums = ctx.get_int_vec("nums").unwrap();
+            let tags = ctx.get_string_vec("tags").unwrap();
+            let size = ctx.get_size_in_bytes("max_size").unwrap();
+            let host = ctx
+                .get_string_map("server")
+                .and_then(|m| m.get("host").cloned());
+            *out2.lock().unwrap() = format!(
+                "{:?}|{}|{}|{:?}|{}|{}|{}",
+                duration,
+                ratio,
+                limit,
+                nums,
+                tags.join(","),
+                size,
+                matches!(host, Some(wrcli::config::SettingsEntry::Value(_)))
+            );
+        })
+        .execute_with(args(""))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), "30s|1.5|12|[1, 2, 3]|a,b|1024|true");
+}
+
+#[test]
+fn context_is_set_reflects_flag_and_config() {
+    let out = Arc::new(Mutex::new(String::new()));
+    let out2 = out.clone();
+    Command::new("app")
+        .flag(Flag::new("port", FlagValue::Int(0), "port"))
+        .with_config(Config::new().set_default("timeout", 5i64))
+        .on_run(move |ctx| {
+            *out2.lock().unwrap() = format!(
+                "{},{},{}",
+                ctx.is_set("port"),
+                ctx.is_set("timeout"),
+                ctx.is_set("missing")
+            );
+        })
+        .execute_with(args("--port 3000"))
+        .unwrap();
+    assert_eq!(*out.lock().unwrap(), "true,true,false");
 }

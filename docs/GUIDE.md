@@ -7,6 +7,7 @@
 - [설치](#설치)
 - [커맨드](#커맨드)
 - [플래그](#플래그)
+- [숨김 · Deprecated · 플래그 제약](#숨김--deprecated--플래그-제약)
 - [포지셔널 인수 검증](#포지셔널-인수-검증)
 - [라이프사이클 훅](#라이프사이클-훅)
 - [설정(Config)](#설정config)
@@ -26,6 +27,7 @@
   - [설정 파일 감시](#설정-파일-감시)
 - [CommandContext](#commandcontext)
 - [Completion 스크립트 생성](#completion-스크립트-생성)
+  - [동적 completion](#동적-completion)
 - [에러 처리](#에러-처리)
 - [테스트 작성](#테스트-작성)
 - [피처 플래그](#피처-플래그)
@@ -102,6 +104,23 @@ Command::new("app")
 ```
 
 서브커맨드 안에 또 다른 `Command`를 넣으면 무한 중첩이 가능합니다.
+
+### usage 힌트
+
+`.usage_args("<name>")`로 `--help`의 usage 줄에 포지셔널 인수 힌트를 표시합니다.
+
+```rust
+Command::new("greet")
+    .usage_args("<name>")
+    .on_run(|_| {})
+    .execute()
+    .unwrap();
+```
+
+```text
+Usage:
+  app greet <name> [flags]
+```
 
 ### 버전 플래그
 
@@ -215,6 +234,128 @@ tag: frontend
 tag: prod
 tag: v2
 ```
+
+`.comma_separated()`를 붙이면 `--tag a,b,c`를 여러 값으로 분리합니다(공백 제거,
+빈 항목 무시). 기본은 분리하지 않습니다.
+
+```rust
+Flag::new("tag", FlagValue::StringVec(vec![]), "tags").comma_separated()
+```
+
+```bash
+$ app --tag frontend,prod --tag=v2
+tag: frontend
+tag: prod
+tag: v2
+```
+
+### 부모 로컬 플래그 (서브커맨드 앞)
+
+`persistent`가 아닌 부모 커맨드의 플래그도 **서브커맨드 이름 앞에** 지정하면
+부모가 소비하고, 그 값은 리프 컨텍스트에서도 읽을 수 있습니다. 서브커맨드 이름
+뒤에 지정한 부모 로컬 플래그는 알 수 없는 플래그로 처리됩니다.
+
+```rust
+Command::new("app")
+    .flag(Flag::new("profile", FlagValue::String(String::new()), "profile name"))
+    .subcommand(Command::new("deploy").on_run(|ctx| {
+        // `app --profile prod deploy` → "prod"
+        let profile = ctx.flags.get_string("profile").unwrap_or("dev");
+        println!("deploying with {profile}");
+    }))
+    .execute()
+    .unwrap();
+```
+
+```bash
+app --profile prod deploy   # OK
+app deploy --profile prod   # 오류: 알 수 없는 플래그
+```
+
+부모 로컬 플래그는 help/completion 목록에 상속되지 않으므로, 리프의 `Flags`
+섹션에는 나타나지 않습니다. `--help`/`--version`이 포함되면 부모는 플래그를
+소비하지 않고 리프가 그대로 처리합니다.
+
+---
+
+## 숨김 · Deprecated · 플래그 제약
+
+### 숨김 (hidden)
+
+`.hidden()`이 붙은 커맨드와 플래그는 `--help`와 completion 스크립트에서
+빠지지만, 파싱과 실행은 그대로 동작합니다. 내부용·실험적 기능에 사용하세요.
+
+```rust
+Command::new("app")
+    .flag(Flag::new("internal", FlagValue::Bool(false), "internal use only").hidden())
+    .subcommand(Command::new("secret").hidden().on_run(|_| println!("secret")))
+    .execute()
+    .unwrap();
+```
+
+오타 제안(`Did you mean`)에도 숨겨진 항목은 포함되지 않습니다.
+
+### Deprecated
+
+`.deprecated("메시지")`를 지정하면 해당 커맨드/플래그가 실제로 사용될 때
+stderr로 경고가 출력됩니다. 실행 자체는 계속됩니다.
+
+```rust
+Command::new("app")
+    .flag(Flag::new("old", FlagValue::Bool(false), "legacy").deprecated("use --new"))
+    .subcommand(Command::new("legacy").deprecated("use `app new`").on_run(|_| {}))
+    .execute()
+    .unwrap();
+```
+
+```bash
+$ app legacy
+Command "legacy" is deprecated: use `app new`
+```
+
+### 플래그 제약 그룹
+
+세 가지 제약을 선언하면 리프 커맨드 실행 직전에 검증됩니다. 설정에서 시드된
+값은 "사용자가 지정한 것"으로 치지 않으므로 제약을 발동시키지 않습니다.
+
+```rust
+Command::new("app")
+    .flag(Flag::new("json", FlagValue::Bool(false), "JSON output"))
+    .flag(Flag::new("yaml", FlagValue::Bool(false), "YAML output"))
+    .flag(Flag::new("user", FlagValue::String(String::new()), "user"))
+    .flag(Flag::new("pass", FlagValue::String(String::new()), "password"))
+    .mutually_exclusive(&["json", "yaml"])   // 둘 다 지정하면 오류
+    .required_together(&["user", "pass"])    // 일부만 지정하면 오류
+    .one_required(&["json", "yaml"])         // 최소 하나 필요
+    .on_run(|_| {})
+    .execute()
+    .unwrap();
+```
+
+| 위반 시 | 에러 변형 |
+| ------- | --------- |
+| 둘 이상 지정 | `MutuallyExclusiveFlags` |
+| 일부만 지정 | `RequiredFlagsTogether` |
+| 하나도 미지정 | `OneFlagRequired` |
+
+### 오타 제안 (Did you mean)
+
+미등록 커맨드/플래그에는 편집 거리 기반 후보가 에러 메시지에 포함됩니다.
+`.suggest_for("별칭")`로 실행되지 않는 **제안 전용** 이름을 추가할 수 있습니다
+(Cobra의 `SuggestFor`).
+
+```rust
+Command::new("app")
+    .subcommand(
+        Command::new("remove")
+            .suggest_for("delete")   // `app delete` → "Did you mean: remove"
+            .on_run(|_| {}),
+    )
+    .execute()
+    .unwrap();
+```
+
+숨김(`hidden`) 항목은 제안 대상에서 제외됩니다.
 
 ---
 
@@ -555,13 +696,27 @@ let _watcher = cfg.watch_config()?; // drop하면 감시 중단
     let host = ctx.get_string("server.host").unwrap_or_default();
     let port = ctx.get_int("server.port").unwrap_or(8080);
 
+    // 타입 변환 getter (플래그 → 설정)
+    let _limit = ctx.get_uint("limit");
+    let _timeout = ctx.get_duration("timeout");
+    let _max_size = ctx.get_size_in_bytes("max_size");
+    let _nums = ctx.get_int_vec("nums");
+    let _server = ctx.get_string_map("server");
+
+    // 플래그로 명시 지정되었거나 설정에 존재하는지
+    let explicit = ctx.is_set("port");
+
     // 현재 커맨드 경로 (예: ["myapp", "config", "get"])
     println!("{}", ctx.command_name());
     println!("{:?}", ctx.command_path);
+    let _ = explicit;
 })
 ```
 
 `ctx.get_*(key)`는 플래그명과 설정 키가 같을 때 편리하게 사용할 수 있습니다.
+`get_duration` / `get_time` / `get_size_in_bytes` / `get_string_map`은 플래그에
+해당 타입이 없으면 설정에서 조회합니다. `is_set`은 argv로 명시된 플래그 또는
+설정에 존재하는 키에 대해 `true`를 반환합니다.
 
 ---
 
@@ -591,6 +746,54 @@ std::fs::write("myapp.bash", bash_script)?;
 myapp gen-completion bash > /etc/bash_completion.d/myapp
 ```
 
+### 동적 completion
+
+`gen_completion`은 커맨드 트리를 정적으로 박아 넣습니다. 설정·파일·서버 상태에
+따라 후보가 달라져야 하면 동적 API를 사용하세요.
+
+- `Command::complete(&[String])` — 마지막 토큰(완성 중)에 대한 후보를 반환.
+  서브커맨드·플래그·`arg_candidates` 후보를 자동으로 수집하고 prefix로 필터링합니다.
+- `Command::completion_request(Vec<String>)` — 첫 토큰이 `__complete`이면 후보를
+  `Some`으로 반환하는 `main` 진입점 헬퍼.
+- `Command::arg_candidates(f)` — 포지셔널 인수 후보를 만드는 함수 등록.
+
+```rust
+fn main() {
+    let cmd = Command::new("myapp")
+        .subcommand(
+            Command::new("run")
+                .arg_candidates(|prior| {
+                    if prior.is_empty() {
+                        vec!["build".into(), "test".into(), "deploy".into()]
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .on_run(|_| {}),
+        );
+
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(candidates) = cmd.completion_request(args) {
+        for c in candidates {
+            println!("{}", c);
+        }
+        return;
+    }
+
+    cmd.execute().unwrap();
+}
+```
+
+```bash
+$ myapp __complete run ""
+build
+test
+deploy
+```
+
+생성된 스크립트에서 이 프로토콜을 호출하도록 바꾸려면 `COMPREPLY`를
+`"$1" __complete "${COMP_WORDS[@]:1}"` 결과로 채우면 됩니다.
+
 ---
 
 ## 에러 처리
@@ -612,18 +815,46 @@ myapp gen-completion bash > /etc/bash_completion.d/myapp
 | `ConfigFileExists` | `safe_write_config_as` 대상 파일이 이미 존재 |
 | `ConfigDeserializeError` | `unmarshal` 역직렬화 실패 |
 | `ConfigWatchNotReady` | `watch_config` 선행 조건 미충족 |
+| `MutuallyExclusiveFlags` | `mutually_exclusive` 그룹 위반 |
+| `RequiredFlagsTogether` | `required_together` 그룹 위반 |
+| `OneFlagRequired` | `one_required` 그룹 위반 |
 | `UnsupportedConfigFormat` | 활성화되지 않은 설정 포맷 사용 |
 | `UserError` | `on_run_e`에서 반환한 에러 |
 | `Io` | 설정 파일 읽기 등 I/O 실패 |
 | `UnsupportedCompletionShell` | 지원하지 않는 셸로 completion 생성 |
 
-권장 패턴:
+`UnknownFlag` / `UnknownSubcommand`는 편집 거리 기반 오타 제안을 메시지에
+포함합니다.
+
+```text
+unknown command 'gret' for 'app'  Run with --help for available commands.
+
+Did you mean this?
+ greet
+```
+
+### 종료 코드
+
+`WrCliError::is_usage_error()`와 `WrCliError::exit_code()`로 분류할 수 있습니다.
+사용법 오류(미등록 플래그/커맨드, 필수 플래그 누락, 타입 오류, 제약 위반 등)는
+**2**, 그 외 실행 오류는 **1**입니다.
+
+가장 간단한 패턴은 `Command::execute_or_exit()`입니다. 오류를 stderr에
+`Error: ...` 형태로 출력하고 알맞은 코드로 종료합니다.
+
+```rust
+fn main() {
+    build_cli().execute_or_exit(); // 성공 시 0, 오류 시 1 또는 2
+}
+```
+
+수동으로 제어하려면:
 
 ```rust
 fn main() {
     if let Err(e) = build_cli().execute() {
         eprintln!("error: {}", e);
-        std::process::exit(1);
+        std::process::exit(e.exit_code());
     }
 }
 ```
