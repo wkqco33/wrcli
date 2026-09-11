@@ -47,6 +47,9 @@ pub enum WrCliError {
 
     /// `read_config` 호출 시 설정 포맷이 지정되지 않음.
     ConfigTypeNotSet,
+
+    /// `safe_write_config_as` 대상 파일이 이미 존재함.
+    ConfigFileExists(String),
 }
 
 impl WrCliError {
@@ -149,6 +152,9 @@ impl fmt::Display for WrCliError {
                     f,
                     "config type not set; call set_config_type() before read_config"
                 )
+            }
+            WrCliError::ConfigFileExists(path) => {
+                write!(f, "config file '{}' already exists", path)
             }
         }
     }

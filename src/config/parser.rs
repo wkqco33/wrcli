@@ -19,6 +19,15 @@ pub(super) fn parse_config_content(
         #[cfg(feature = "yaml-config")]
         "yaml" | "yml" => parse_yaml(content, path),
 
+        #[cfg(feature = "dotenv-config")]
+        "env" | "dotenv" => Ok(parse_dotenv(content)),
+
+        #[cfg(feature = "properties-config")]
+        "properties" | "props" | "prop" => Ok(parse_properties(content)),
+
+        #[cfg(feature = "ini-config")]
+        "ini" => Ok(parse_ini(content)),
+
         other => Err(WrCliError::UnsupportedConfigFormat(other.to_owned())),
     }
 }
@@ -30,6 +39,95 @@ fn child_key(prefix: &str, key: &str) -> String {
     } else {
         format!("{}.{}", prefix, key)
     }
+}
+
+/// 양끝의 일치하는 따옴표를 제거.
+#[cfg(any(
+    feature = "dotenv-config",
+    feature = "properties-config",
+    feature = "ini-config"
+))]
+fn unquote(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let quoted = s.len() >= 2
+        && ((bytes[0] == b'"' && bytes[s.len() - 1] == b'"')
+            || (bytes[0] == b'\'' && bytes[s.len() - 1] == b'\''));
+    if quoted {
+        s[1..s.len() - 1].to_owned()
+    } else {
+        s.to_owned()
+    }
+}
+
+// ── dotenv ────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "dotenv-config")]
+fn parse_dotenv(content: &str) -> HashMap<String, ConfigValue> {
+    let mut map = HashMap::new();
+    for raw in content.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let line = line.strip_prefix("export ").unwrap_or(line);
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim().to_lowercase();
+            if !key.is_empty() {
+                map.insert(key, ConfigValue::String(unquote(value.trim())));
+            }
+        }
+    }
+    map
+}
+
+// ── Java properties ───────────────────────────────────────────────────────────
+
+#[cfg(feature = "properties-config")]
+fn parse_properties(content: &str) -> HashMap<String, ConfigValue> {
+    let mut map = HashMap::new();
+    for raw in content.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
+            continue;
+        }
+        if let Some(idx) = line.find(['=', ':']) {
+            let key = line[..idx].trim().to_lowercase();
+            if !key.is_empty() {
+                map.insert(key, ConfigValue::String(unquote(line[idx + 1..].trim())));
+            }
+        }
+    }
+    map
+}
+
+// ── INI ───────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "ini-config")]
+fn parse_ini(content: &str) -> HashMap<String, ConfigValue> {
+    let mut map = HashMap::new();
+    let mut section = String::new();
+    for raw in content.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with(';') || line.starts_with('#') {
+            continue;
+        }
+        if let Some(inner) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+            section = inner.trim().to_lowercase();
+            continue;
+        }
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim().to_lowercase();
+            let full = if section.is_empty() {
+                key
+            } else {
+                format!("{}.{}", section, key)
+            };
+            if !full.is_empty() && !full.ends_with('.') {
+                map.insert(full, ConfigValue::String(unquote(value.trim())));
+            }
+        }
+    }
+    map
 }
 
 // ── TOML ──────────────────────────────────────────────────────────────────────

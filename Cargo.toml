@@ -17,6 +17,9 @@ default     = ["toml-config", "json-config"]
 toml-config = ["dep:toml"]
 json-config = ["dep:serde_json"]
 yaml-config = ["dep:noyalib"]
+ini-config  = []
+dotenv-config = []
+properties-config = []
 
 [dependencies]
 indexmap    = "2.14"

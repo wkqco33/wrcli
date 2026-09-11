@@ -9,7 +9,7 @@
 | 티어 | 범위 | 상태 |
 | --- | --- | --- |
 | T1 저위험 | Set/IsSet/Alias/구분자·env replacer/추가 getter | 완료 |
-| T2 중위험 | AllKeys/AllSettings/Map getter/Sub/Merge/Write/신규 포맷 | 진행 중 |
+| T2 중위험 | AllKeys/AllSettings/Map getter/Sub/Merge/Write/신규 포맷 | 완료 |
 | T3 고위험 | Unmarshal(serde), WatchConfig | 예정 |
 | 비목표 | Remote(Etcd/Consul/Firestore/NATS), crypt | 제외 |
 
@@ -49,12 +49,14 @@ explicit(set) → flag → env → file → default
 - 신규 타입 `SettingsMap`/`SettingsEntry`, 에러 `ConfigTypeNotSet`.
 - 테스트: `tests/config.rs` Phase 2 섹션 8개 + `settings.rs` 단위 2개.
 
-### Phase 3 — T2 쓰기 + 포맷 (다음)
+### Phase 3 — T2 쓰기 + 포맷 (완료)
 
-- `write_config_as`/`safe_write_config_as`, `set_config_permissions`.
-- 피처: `ini-config`, `dotenv-config`, `properties-config`.
+- `write_config_as`, `safe_write_config_as` (에러 `ConfigFileExists`).
+- 신규 피처/포맷: `ini-config`, `dotenv-config`, `properties-config` (읽기+쓰기).
+- 쓰기 지원: TOML, JSON, INI, dotenv, properties.
+- 테스트: `tests/config.rs` Phase 3 섹션 6개.
 
-### Phase 4 — T3 Unmarshal
+### Phase 4 — T3 Unmarshal (다음)
 
 - `serde` 피처, `Config::unmarshal<T>()`, `unmarshal_key<T>(key)`.
 
@@ -64,7 +66,7 @@ explicit(set) → flag → env → file → default
 
 ### Phase 6 — 선택
 
-- `case_insensitive_keys`, YAML 백엔드 교체, `debug()`.
+- `set_config_permissions`, YAML 쓰기, `case_insensitive_keys`, YAML 백엔드 교체, `debug()`.
 
 ## 리스크
 

@@ -6,7 +6,7 @@ use common::{EnvGuard, args, tempdir};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 use wrcli::config::SettingsEntry;
-use wrcli::{Command, Config, ConfigValue, Flag, FlagValue};
+use wrcli::{Command, Config, ConfigValue, Flag, FlagValue, WrCliError};
 
 #[test]
 fn config_default_value() {
@@ -136,10 +136,10 @@ fn config_missing_file_is_error() {
 #[test]
 fn config_unsupported_format_error() {
     let dir = tempdir();
-    std::fs::File::create(dir.path().join("app.ini")).unwrap();
+    std::fs::File::create(dir.path().join("app.hcl")).unwrap();
     let mut cfg = Config::new()
         .set_config_name("app")
-        .set_config_type("ini")
+        .set_config_type("hcl")
         .add_config_path(dir.path().to_path_buf());
     let err = cfg.read_in_config().unwrap_err();
     assert!(matches!(err, wrcli::WrCliError::UnsupportedConfigFormat(_)));
@@ -677,4 +677,83 @@ fn merge_config_map_adds_absent_keys() {
     cfg.merge_config_map([("b".to_owned(), ConfigValue::Int(2))]);
     assert_eq!(cfg.get_int("b"), Some(2));
     assert_eq!(cfg.get_int("a"), Some(1));
+}
+
+// ── Phase 3: 신규 포맷 & 쓰기 ────────────────────────────────────────────────
+
+#[cfg(feature = "dotenv-config")]
+#[test]
+fn dotenv_file_parses() {
+    let mut cfg = Config::new().set_config_type("dotenv");
+    cfg.read_config("PORT=9000\n# comment\nHOST=\"x\"\n".as_bytes())
+        .unwrap();
+    assert_eq!(cfg.get_int("port"), Some(9000));
+    assert_eq!(cfg.get_string("host"), Some("x".to_owned()));
+}
+
+#[cfg(feature = "properties-config")]
+#[test]
+fn properties_file_parses() {
+    let mut cfg = Config::new().set_config_type("properties");
+    cfg.read_config("server.port=9000\n# comment\nname: app\n".as_bytes())
+        .unwrap();
+    assert_eq!(cfg.get_int("server.port"), Some(9000));
+    assert_eq!(cfg.get_string("name"), Some("app".to_owned()));
+}
+
+#[cfg(feature = "ini-config")]
+#[test]
+fn ini_file_parses_sections() {
+    let mut cfg = Config::new().set_config_type("ini");
+    cfg.read_config("[server]\nport=9000\n\n[db]\nurl=x\n".as_bytes())
+        .unwrap();
+    assert_eq!(cfg.get_int("server.port"), Some(9000));
+    assert_eq!(cfg.get_string("db.url"), Some("x".to_owned()));
+}
+
+#[cfg(feature = "json-config")]
+#[test]
+fn write_config_as_json_roundtrip() {
+    let dir = tempdir();
+    let path = dir.path().join("out.json");
+    Config::new()
+        .set_default("server.port", 8080i64)
+        .write_config_as(&path)
+        .unwrap();
+
+    let mut loaded = Config::new().set_config_type("json");
+    loaded
+        .read_config(std::fs::read_to_string(&path).unwrap().as_bytes())
+        .unwrap();
+    assert_eq!(loaded.get_int("server.port"), Some(8080));
+}
+
+#[cfg(feature = "toml-config")]
+#[test]
+fn write_config_as_toml_roundtrip() {
+    let dir = tempdir();
+    let path = dir.path().join("out.toml");
+    Config::new()
+        .set_default("server.port", 8080i64)
+        .write_config_as(&path)
+        .unwrap();
+
+    let mut loaded = Config::new().set_config_type("toml");
+    loaded
+        .read_config(std::fs::read_to_string(&path).unwrap().as_bytes())
+        .unwrap();
+    assert_eq!(loaded.get_int("server.port"), Some(8080));
+}
+
+#[cfg(feature = "json-config")]
+#[test]
+fn safe_write_config_as_refuses_existing() {
+    let dir = tempdir();
+    let path = dir.path().join("exists.json");
+    std::fs::write(&path, "{}").unwrap();
+    let err = Config::new()
+        .set_default("a", 1i64)
+        .safe_write_config_as(&path)
+        .unwrap_err();
+    assert!(matches!(err, WrCliError::ConfigFileExists(_)));
 }

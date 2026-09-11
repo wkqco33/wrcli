@@ -26,6 +26,8 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - 타입 조회: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_duration`/`get_time`/`get_size_in_bytes`
 - **열거·하위 트리**: `all_keys`, `all_settings`, `get_string_map*`, `sub`
 - **런타임 읽기·병합**: `read_config`, `merge_in_config`, `merge_config_map`
+- **설정 저장**: `write_config_as`, `safe_write_config_as`
+- **포맷**: TOML·JSON(기본), YAML·INI·dotenv·Java properties(피처)
 - 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
 - **Completion 스크립트 생성** (bash / zsh / fish)
 - 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`

@@ -6,6 +6,7 @@ use std::time::{Duration, SystemTime};
 use super::parser::parse_config_content;
 use super::settings::{SettingsMap, build_settings};
 use super::value::ConfigValue;
+use super::writer::serialize;
 use crate::error::{Result, WrCliError};
 
 /// Go의 Viper에서 영감을 받은 설정 저장소.
@@ -634,6 +635,32 @@ impl Config {
         }
     }
 
+    // ── 쓰기 ────────────────────────────────────────────────────────────────
+
+    /// 현재 설정을 파일로 저장 (Viper의 `WriteConfigAs`).
+    ///
+    /// 확장자로 포맷을 판별하고 중첩 설정을 직렬화한다.
+    pub fn write_config_as(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = expand_path(path.as_ref());
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_lowercase)
+            .ok_or_else(|| WrCliError::UnsupportedConfigFormat(String::new()))?;
+        let content = serialize(&self.all_settings(), &ext, &path.display().to_string())?;
+        std::fs::write(&path, content)?;
+        Ok(())
+    }
+
+    /// 대상 파일이 없을 때만 저장 (Viper의 `SafeWriteConfigAs`).
+    pub fn safe_write_config_as(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = expand_path(path.as_ref());
+        if path.exists() {
+            return Err(WrCliError::ConfigFileExists(path.display().to_string()));
+        }
+        self.write_config_as(path)
+    }
+
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
 
     fn env_lookup(&self, key: &str) -> Option<String> {
@@ -685,6 +712,19 @@ fn supported_extensions() -> Vec<String> {
         exts.push("yaml".to_owned());
         exts.push("yml".to_owned());
     }
+    #[cfg(feature = "dotenv-config")]
+    {
+        exts.push("env".to_owned());
+        exts.push("dotenv".to_owned());
+    }
+    #[cfg(feature = "properties-config")]
+    {
+        exts.push("properties".to_owned());
+        exts.push("props".to_owned());
+        exts.push("prop".to_owned());
+    }
+    #[cfg(feature = "ini-config")]
+    exts.push("ini".to_owned());
     exts
 }
 

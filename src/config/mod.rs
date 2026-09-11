@@ -2,6 +2,7 @@ mod parser;
 mod settings;
 mod store;
 mod value;
+mod writer;
 
 pub use settings::{SettingsEntry, SettingsMap};
 pub use store::Config;

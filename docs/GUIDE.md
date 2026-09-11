@@ -303,7 +303,7 @@ let config = Config::new()
 ```rust
 let mut config = Config::new()
     .set_config_name("myapp")          // 파일명 (확장자 제외)
-    .set_config_type("toml")           // "toml" | "json" | "yaml"
+    .set_config_type("toml")           // toml | json | yaml | ini | env(dotenv) | properties
     .add_config_path(".")              // 검색 디렉토리 (여러 개 가능)
     .add_config_path("~/.config/myapp");
 
@@ -475,6 +475,18 @@ cfg.merge_config_map([("c".to_owned(), ConfigValue::Int(3))]);
 `read_config`는 [`set_config_type`](Config::set_config_type)으로 포맷을 먼저 지정해야 하며,
 미지정 시 `WrCliError::ConfigTypeNotSet`을 반환합니다.
 
+### 설정 저장(Write)
+
+```rust
+// 모든 레이어를 병합한 현재 설정을 파일로 저장 (확장자로 포맷 판별)
+ctx.config.write_config_as("out.toml")?;
+
+// 대상 파일이 이미 있으면 실패
+ctx.config.safe_write_config_as("out.json")?; // Err(ConfigFileExists)
+```
+
+쓰기 지원 포맷: TOML, JSON, INI, dotenv, properties (해당 피처 활성화 시).
+
 ---
 
 ## CommandContext
@@ -547,6 +559,7 @@ myapp gen-completion bash > /etc/bash_completion.d/myapp
 | `ConfigFileNotFound` | 설정 파일을 찾을 수 없음 |
 | `ConfigParseError` | 설정 파일 파싱 실패 |
 | `ConfigTypeNotSet` | `read_config`에 포맷 미지정 |
+| `ConfigFileExists` | `safe_write_config_as` 대상 파일이 이미 존재 |
 | `UnsupportedConfigFormat` | 활성화되지 않은 설정 포맷 사용 |
 | `UserError` | `on_run_e`에서 반환한 에러 |
 | `Io` | 설정 파일 읽기 등 I/O 실패 |
@@ -642,10 +655,13 @@ fn unknown_flag_fails() {
 | `toml-config` | ✅ | TOML 설정 파일 지원 |
 | `json-config` | ✅ | JSON 설정 파일 지원 |
 | `yaml-config` | ❌ | YAML 설정 파일 지원 (`noyalib`) |
+| `ini-config` | ❌ | INI 설정 파일 지원 |
+| `dotenv-config` | ❌ | `.env` / dotenv 설정 파일 지원 |
+| `properties-config` | ❌ | Java properties 설정 파일 지원 |
 
 ```toml
 # 모든 형식 활성화
-wrcli = { version = "0.1", features = ["yaml-config"] }
+wrcli = { version = "0.1", features = ["yaml-config", "ini-config", "dotenv-config", "properties-config"] }
 
 # 최소 빌드 (설정 파일 지원 없음)
 wrcli = { version = "0.1", default-features = false }

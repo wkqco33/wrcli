@@ -15,6 +15,8 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 - 타입 getter: `get_string`, `get_int`/`get_int64`, `get_uint`, `get_bool`, `get_float`, `get_string_vec`/`get_string_slice`, `get_duration`, `get_time`, `get_size_in_bytes`.
 - 열거/하위 트리: `all_keys`, `all_settings`, `get_string_map`/`get_string_map_string`/`get_string_map_string_slice`, `sub`.
 - 런타임 읽기/병합: `read_config`, `merge_in_config`, `merge_config_map`.
+- 설정 저장: `write_config_as`, `safe_write_config_as`.
+- 포맷: TOML·JSON(기본), YAML·INI·dotenv·Java properties(피처).
 - `set_config_file`, `set_config_name`, 경로, `automatic_env`를 통한 설정 파일 탐색 및 형식 추론.
 - 명시적으로 입력하지 않은 플래그에 대한 설정 → 플래그 폴백.
 - `gen_completion`을 통한 bash, zsh, fish 자동완성 생성.
@@ -127,8 +129,9 @@ cargo fmt -- --check
   않는 한 bash, zsh, fish만 지원합니다.
 - **스타일링**: `stdout_is_styled()`/`stderr_is_styled()`를 사용하고 `NO_COLOR`를 존중하세요.
   폭에 민감한 렌더링은 `display_width()`를 사용해 CJK 텍스트 정렬을 유지하세요.
-- **피처 게이트 코드**: 설정 형식 백엔드(`toml-config`, `json-config`, `yaml-config`)는
-  `#[cfg(feature = ...)]`로 감싸고 `--all-features`로 테스트해야 합니다.
+- **피처 게이트 코드**: 설정 형식 백엔드(`toml-config`, `json-config`, `yaml-config`,
+  `ini-config`, `dotenv-config`, `properties-config`)는 `#[cfg(feature = ...)]`로 감싸고
+  `--all-features`로 테스트해야 합니다.
 - **요청받지 않는 한 코드에 주석을 추가하지 마세요.** 공개 API의 문서(`///`)는 환영합니다.
 
 ## 문서 구성
