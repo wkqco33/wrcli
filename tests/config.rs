@@ -863,3 +863,48 @@ fn unmarshal_missing_key_errors() {
     let cfg = Config::new();
     assert!(cfg.unmarshal_key::<ServerConfig>("server").is_err());
 }
+
+// ── Phase 5: WatchConfig ─────────────────────────────────────────────────────
+
+#[cfg(feature = "toml-config")]
+#[test]
+fn watch_config_requires_loaded_file_and_callback() {
+    let mut cfg = Config::new();
+    assert!(cfg.watch_config().is_err(), "no file/callback");
+
+    let dir = tempdir();
+    let path = dir.path().join("w.toml");
+    std::fs::write(&path, "port = 1\n").unwrap();
+    let mut cfg = Config::new().set_config_file(&path);
+    cfg.read_in_config().unwrap();
+    assert!(cfg.watch_config().is_err(), "callback missing");
+}
+
+#[cfg(feature = "toml-config")]
+#[test]
+fn watch_config_invokes_callback_on_change() {
+    let dir = tempdir();
+    let path = dir.path().join("watch.toml");
+    std::fs::write(&path, "port = 1\n").unwrap();
+
+    let mut cfg = Config::new()
+        .set_config_file(&path)
+        .set_watch_interval(Duration::from_millis(20));
+    cfg.read_in_config().unwrap();
+
+    let hits = Arc::new(Mutex::new(0usize));
+    let hits2 = hits.clone();
+    let mut cfg = cfg.on_config_change(move |c| {
+        assert_eq!(c.get_int("port"), Some(2));
+        *hits2.lock().unwrap() += 1;
+    });
+
+    let _watcher = cfg.watch_config().unwrap();
+    std::fs::write(&path, "port = 2\n").unwrap();
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    while *hits.lock().unwrap() == 0 && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(*hits.lock().unwrap() >= 1, "callback was not invoked");
+}

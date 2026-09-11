@@ -7,5 +7,5 @@ mod value;
 mod writer;
 
 pub use settings::{SettingsEntry, SettingsMap};
-pub use store::Config;
+pub use store::{Config, ConfigWatcher};
 pub use value::ConfigValue;

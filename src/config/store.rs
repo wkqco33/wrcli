@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime};
 
 use super::parser::parse_config_content;
@@ -42,7 +45,7 @@ use crate::error::{Result, WrCliError};
 /// cfg.read_in_config().ok();
 /// let port = cfg.get_int("server.port").unwrap_or(8080);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     // 우선순위 레이어 1 (최저): 프로그래밍 기본값
     defaults: HashMap<String, ConfigValue>,
@@ -59,6 +62,7 @@ pub struct Config {
     config_type: Option<String>,
     config_paths: Vec<PathBuf>,
     config_file: Option<PathBuf>,
+    loaded_file: Option<PathBuf>,
 
     env_prefix: Option<String>,
     env_prefix_upper: Option<String>,
@@ -68,6 +72,19 @@ pub struct Config {
     explicit_env_bindings: HashMap<String, String>,
 
     key_delim: char,
+
+    on_change: Option<ChangeCallback>,
+    watch_interval: Duration,
+}
+
+/// 설정 변경 콜백 (감시 스레드와 공유).
+#[derive(Clone)]
+struct ChangeCallback(Arc<dyn Fn(&Config) + Send + Sync>);
+
+impl std::fmt::Debug for ChangeCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ChangeCallback")
+    }
 }
 
 impl Default for Config {
@@ -82,6 +99,7 @@ impl Default for Config {
             config_type: None,
             config_paths: Vec::new(),
             config_file: None,
+            loaded_file: None,
             env_prefix: None,
             env_prefix_upper: None,
             auto_env: false,
@@ -89,6 +107,8 @@ impl Default for Config {
             env_key_replacer: None,
             explicit_env_bindings: HashMap::new(),
             key_delim: '.',
+            on_change: None,
+            watch_interval: Duration::from_secs(1),
         }
     }
 }
@@ -141,7 +161,7 @@ impl Config {
     /// 파일을 찾지 못하면 [`WrCliError::ConfigFileNotFound`] 반환.
     /// 파일 없을 때 무시하려면 `.read_in_config().ok()` 사용.
     pub fn read_in_config(&mut self) -> Result<()> {
-        if let Some(file) = self.config_file.take() {
+        if let Some(file) = self.config_file.clone() {
             return self.read_explicit_file(file);
         }
         let name = self
@@ -170,6 +190,7 @@ impl Config {
                     let content = std::fs::read_to_string(&full)?;
                     self.file_values =
                         parse_config_content(&content, ext, &full.display().to_string())?;
+                    self.loaded_file = Some(full);
                     return Ok(());
                 }
             }
@@ -190,6 +211,7 @@ impl Config {
             .unwrap_or_default();
         let content = std::fs::read_to_string(&expanded)?;
         self.file_values = parse_config_content(&content, &ext, &expanded.display().to_string())?;
+        self.loaded_file = Some(expanded);
         Ok(())
     }
 
@@ -599,6 +621,7 @@ impl Config {
         let mut content = String::new();
         reader.read_to_string(&mut content)?;
         self.file_values = parse_config_content(&content, &ext, "<reader>")?;
+        self.loaded_file = None;
         Ok(())
     }
 
@@ -686,6 +709,63 @@ impl Config {
         T::deserialize(super::de::ConfigDeserializer::map(&settings))
     }
 
+    // ── 감시 (WatchConfig) ───────────────────────────────────────────────────
+
+    /// 설정 파일 변경 콜백 등록 (Viper의 `OnConfigChange`).
+    pub fn on_config_change<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&Config) + Send + Sync + 'static,
+    {
+        self.on_change = Some(ChangeCallback(Arc::new(f)));
+        self
+    }
+
+    /// 변경 감지 폴링 주기 설정 (기본 1초).
+    pub fn set_watch_interval(mut self, interval: Duration) -> Self {
+        self.watch_interval = interval;
+        self
+    }
+
+    /// 설정 파일 변경을 감시 (Viper의 `WatchConfig`).
+    ///
+    /// [`Config::on_config_change`]와 [`Config::read_in_config`]가 선행되어야 한다.
+    /// 반환된 [`ConfigWatcher`]를 drop하면 감시가 중단된다.
+    pub fn watch_config(&mut self) -> Result<ConfigWatcher> {
+        let callback = self
+            .on_change
+            .clone()
+            .ok_or(WrCliError::ConfigWatchNotReady)?;
+        let path = self
+            .loaded_file
+            .clone()
+            .ok_or(WrCliError::ConfigWatchNotReady)?;
+        let mut spec = self.clone();
+        spec.on_change = None;
+        let interval = self.watch_interval;
+        let initial = read_file_snapshot(&path);
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_thread = Arc::clone(&stop);
+        let handle = std::thread::spawn(move || {
+            let mut last = initial;
+            while !stop_thread.load(Ordering::Relaxed) {
+                std::thread::sleep(interval);
+                let current = read_file_snapshot(&path);
+                if current.is_some() && current != last {
+                    last = current;
+                    let mut reloaded = spec.clone();
+                    if reloaded.read_in_config().is_ok() {
+                        (callback.0)(&reloaded);
+                    }
+                }
+            }
+        });
+        Ok(ConfigWatcher {
+            stop,
+            handle: Some(handle),
+        })
+    }
+
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
 
     fn env_lookup(&self, key: &str) -> Option<String> {
@@ -714,6 +794,32 @@ impl Config {
             None => upper.replace(['.', '-'], "_"),
         }
     }
+}
+
+/// [`Config::watch_config`]가 반환하는 감시 핸들. drop 시 감시 스레드가 종료된다.
+pub struct ConfigWatcher {
+    stop: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl ConfigWatcher {
+    /// 감시를 중단하고 스레드 종료를 기다린다.
+    pub fn stop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for ConfigWatcher {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+fn read_file_snapshot(path: &Path) -> Option<String> {
+    std::fs::read_to_string(path).ok()
 }
 
 /// 환경변수 조회. `allow_empty`가 false면 빈 값을 미설정으로 취급.

@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | T1 저위험 | Set/IsSet/Alias/구분자·env replacer/추가 getter | 완료 |
 | T2 중위험 | AllKeys/AllSettings/Map getter/Sub/Merge/Write/신규 포맷 | 완료 |
-| T3 고위험 | Unmarshal(serde), WatchConfig | 진행 중 |
+| T3 고위험 | Unmarshal(serde), WatchConfig | 완료 |
 | 비목표 | Remote(Etcd/Consul/Firestore/NATS), crypt | 제외 |
 
 ## 설계 결정 (승인됨)
@@ -63,11 +63,13 @@ explicit(set) → flag → env → file → default
 - 에러 `ConfigDeserializeError`.
 - 테스트: `tests/config.rs` Phase 4 섹션 6개.
 
-### Phase 5 — T3 Watch (다음)
+### Phase 5 — T3 Watch (완료)
 
-- `watch_config()` + `on_config_change()`, 이후 `notify` 옵션 피처.
+- `on_config_change`, `set_watch_interval`, `watch_config` → `ConfigWatcher`(drop 시 종료).
+- 폴링 기반(기본 1초), 에러 `ConfigWatchNotReady`.
+- 테스트: `tests/config.rs` Phase 5 섹션 2개.
 
-### Phase 6 — 선택
+### Phase 6 — 선택 (다음)
 
 - `set_config_permissions`, YAML 쓰기, `case_insensitive_keys`, YAML 백엔드 교체, `debug()`.
 

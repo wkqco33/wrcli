@@ -28,6 +28,7 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - **런타임 읽기·병합**: `read_config`, `merge_in_config`, `merge_config_map`
 - **설정 저장**: `write_config_as`, `safe_write_config_as`
 - **구조체 역직렬화**(`serde` 피처): `unmarshal`, `unmarshal_key`
+- **설정 파일 감시**: `on_config_change`, `watch_config`, `ConfigWatcher`
 - **포맷**: TOML·JSON(기본), YAML·INI·dotenv·Java properties(피처)
 - 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
 - **Completion 스크립트 생성** (bash / zsh / fish)

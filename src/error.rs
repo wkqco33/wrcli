@@ -53,6 +53,9 @@ pub enum WrCliError {
 
     /// `unmarshal` 시 serde 역직렬화 실패.
     ConfigDeserializeError(String),
+
+    /// `watch_config` 선행 조건(콜백/로드된 파일)이 충족되지 않음.
+    ConfigWatchNotReady,
 }
 
 impl WrCliError {
@@ -161,6 +164,12 @@ impl fmt::Display for WrCliError {
             }
             WrCliError::ConfigDeserializeError(msg) => {
                 write!(f, "failed to deserialize config: {}", msg)
+            }
+            WrCliError::ConfigWatchNotReady => {
+                write!(
+                    f,
+                    "watch_config requires on_config_change() and a loaded config file"
+                )
             }
         }
     }

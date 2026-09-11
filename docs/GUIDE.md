@@ -504,6 +504,23 @@ let app: App = ctx.config.unmarshal()?;                    // 전체 트리
 
 지원: struct/map, `Vec`, `Option`, 원시 타입, unit enum variant.
 
+### 설정 파일 감시 (Watch)
+
+```rust
+let mut cfg = Config::new()
+    .set_config_file("app.toml")
+    .set_watch_interval(Duration::from_millis(500))
+    .on_config_change(|reloaded| {
+        println!("port = {:?}", reloaded.get_int("port"));
+    });
+cfg.read_in_config()?;
+
+let _watcher = cfg.watch_config()?; // drop하면 감시 중단
+```
+
+폴링 기반(기본 1초)이며 `on_config_change`와 `read_in_config`가 선행되어야 합니다.
+미충족 시 `WrCliError::ConfigWatchNotReady`를 반환합니다.
+
 ---
 
 ## CommandContext
@@ -578,6 +595,7 @@ myapp gen-completion bash > /etc/bash_completion.d/myapp
 | `ConfigTypeNotSet` | `read_config`에 포맷 미지정 |
 | `ConfigFileExists` | `safe_write_config_as` 대상 파일이 이미 존재 |
 | `ConfigDeserializeError` | `unmarshal` 역직렬화 실패 |
+| `ConfigWatchNotReady` | `watch_config` 선행 조건 미충족 |
 | `UnsupportedConfigFormat` | 활성화되지 않은 설정 포맷 사용 |
 | `UserError` | `on_run_e`에서 반환한 에러 |
 | `Io` | 설정 파일 읽기 등 I/O 실패 |

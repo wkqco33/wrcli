@@ -17,6 +17,7 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 - 런타임 읽기/병합: `read_config`, `merge_in_config`, `merge_config_map`.
 - 설정 저장: `write_config_as`, `safe_write_config_as`.
 - 역직렬화(`serde` 피처): `unmarshal`, `unmarshal_key`.
+- 설정 파일 감시: `on_config_change`, `watch_config`, `ConfigWatcher`(폴링 기반).
 - 포맷: TOML·JSON(기본), YAML·INI·dotenv·Java properties(피처).
 - `set_config_file`, `set_config_name`, 경로, `automatic_env`를 통한 설정 파일 탐색 및 형식 추론.
 - 명시적으로 입력하지 않은 플래그에 대한 설정 → 플래그 폴백.
