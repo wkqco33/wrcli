@@ -1,3 +1,5 @@
+use crate::config::ConfigValue;
+
 /// 플래그의 타입별 값 — 기본값을 통해 타입 태그 역할도 함.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FlagValue {
@@ -91,5 +93,3 @@ pub(crate) fn flag_value_from_config(default: &FlagValue, cv: ConfigValue) -> Op
             .map(|arr| FlagValue::IntVec(arr.iter().filter_map(ConfigValue::as_int).collect())),
     }
 }
-
-use crate::config::ConfigValue;

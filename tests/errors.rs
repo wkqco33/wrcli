@@ -86,8 +86,7 @@ fn version_flag() {
 
 #[test]
 fn help_flag_wins_over_unrecognized_leading_token() {
-    // 회귀 테스트: 인식 불가 토큰이 --help보다 먼저 와도 help가 출력되어야 함
-    // (dispatch가 첫 매치에서 조기 break하면 UnknownSubcommand 에러로 새 나감).
+    // 인식 불가 토큰이 --help보다 먼저 와도 help가 출력되어야 함.
     Command::new("app")
         .subcommand(Command::new("sub").on_run(|_| {}))
         .execute_with(args("ghost --help"))

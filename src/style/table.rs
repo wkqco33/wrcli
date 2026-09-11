@@ -96,8 +96,7 @@ impl Table {
             return String::new();
         }
 
-        // 문자 수 기준으로 폭을 계산해야 format!의 {:<width$} 패딩과 일치함
-        // (str::len()은 바이트 길이라 비-ASCII 문자에서 정렬이 깨짐).
+        // display_width 기준으로 폭을 계산해야 비-ASCII 문자에서도 정렬이 유지됨.
         let mut widths = vec![0usize; col_count];
         for (i, h) in self.headers.iter().enumerate() {
             widths[i] = widths[i].max(display_width(h));
@@ -110,7 +109,7 @@ impl Table {
             }
         }
 
-        // border 문자열을 한 번만 계산 (separator는 행마다 동일)
+        // 테두리 문자열은 한 번만 계산.
         let (top_line, header_sep_line, row_sep_line, bottom_line, plain_sep_line) = if self.border
         {
             let mut top = String::from("┌");
@@ -321,14 +320,12 @@ mod tests {
 
     #[test]
     fn non_ascii_cells_stay_aligned() {
-        // 회귀 테스트: display_width 기준으로 패딩이 계산되어야
-        // 모든 행의 테두리(│)가 같은 표시폭 위치에 정렬됨.
+        // display_width 기준으로 모든 행의 테두리(│)가 같은 위치에 정렬되어야 함.
         let out = Table::new()
             .headers(["이름", "설명"])
             .row(["wrcli", "설명 텍스트"])
             .row(["ab", "x"])
             .render(false);
-        // display_width 기준으로 │ 위치가 모든 행에서 일치해야 함
         let border_positions: Vec<Vec<usize>> = out
             .lines()
             .map(|line| {

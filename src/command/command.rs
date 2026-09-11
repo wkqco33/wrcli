@@ -163,7 +163,7 @@ impl Command {
         self
     }
 
-    /// 이 커맨드의 인폴러블 실행 핸들러.
+    /// 이 커맨드의 실행 핸들러.
     pub fn on_run<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync + 'static,
@@ -172,7 +172,7 @@ impl Command {
         self
     }
 
-    /// 이 커맨드의 폴러블 실행 핸들러. `Err` 반환 시 post-run 훅 중단.
+    /// 이 커맨드의 실행 핸들러. `Err` 반환 시 post-run 훅 중단.
     pub fn on_run_e<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) -> Result<()> + Send + Sync + 'static,

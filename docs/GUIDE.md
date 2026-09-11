@@ -465,7 +465,12 @@ std::fs::write("myapp.bash", bash_script)?;
 지원 셸: `"bash"`, `"zsh"`, `"fish"`. 그 외 셸은
 `WrCliError::UnsupportedCompletionShell`을 반환합니다.
 
+설치용 서브커맨드(`gen-completion` 등)는 내장되어 있지 않습니다. 런타임에
+생성하려면 커맨드 트리를 만든 뒤 `gen_completion`을 호출하는 서브커맨드를
+직접 등록하세요.
+
 ```bash
+# 직접 만든 서브커맨드가 스크립트를 stdout으로 출력하는 경우
 myapp gen-completion bash > /etc/bash_completion.d/myapp
 ```
 
@@ -480,12 +485,15 @@ myapp gen-completion bash > /etc/bash_completion.d/myapp
 | `UnknownFlag` | 미등록 플래그 사용 |
 | `UnknownSubcommand` | 미등록 서브커맨드 사용 |
 | `MissingRequiredFlag` | `.required()` 플래그 미입력 |
+| `MissingFlagValue` | 값을 요구하는 플래그에 값 미제공 (예: `--name`) |
 | `InvalidFlagValue` | 타입 불일치 (예: `--count abc`) |
 | `ArgValidationFailed` | 포지셔널 인수 검증 실패 |
 | `CommandHasNoRunner` | `on_run` 미등록 커맨드 실행 |
 | `ConfigFileNotFound` | 설정 파일을 찾을 수 없음 |
 | `ConfigParseError` | 설정 파일 파싱 실패 |
+| `UnsupportedConfigFormat` | 활성화되지 않은 설정 포맷 사용 |
 | `UserError` | `on_run_e`에서 반환한 에러 |
+| `Io` | 설정 파일 읽기 등 I/O 실패 |
 | `UnsupportedCompletionShell` | 지원하지 않는 셸로 completion 생성 |
 
 권장 패턴:

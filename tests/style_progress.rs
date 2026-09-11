@@ -43,3 +43,13 @@ fn ansi_codes_when_styled() {
         .render(true);
     assert!(p.contains("\x1b["));
 }
+
+#[test]
+fn documented_example_matches_render() {
+    let p = Progress::new(100)
+        .progress(42)
+        .width(20)
+        .label("Downloading")
+        .render(false);
+    assert_eq!(p, "Downloading [########------------]  42%");
+}
