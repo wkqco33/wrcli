@@ -50,6 +50,9 @@ pub enum WrCliError {
 
     /// `safe_write_config_as` 대상 파일이 이미 존재함.
     ConfigFileExists(String),
+
+    /// `unmarshal` 시 serde 역직렬화 실패.
+    ConfigDeserializeError(String),
 }
 
 impl WrCliError {
@@ -156,6 +159,9 @@ impl fmt::Display for WrCliError {
             WrCliError::ConfigFileExists(path) => {
                 write!(f, "config file '{}' already exists", path)
             }
+            WrCliError::ConfigDeserializeError(msg) => {
+                write!(f, "failed to deserialize config: {}", msg)
+            }
         }
     }
 }
@@ -175,6 +181,13 @@ impl std::error::Error for WrCliError {
 impl From<std::io::Error> for WrCliError {
     fn from(e: std::io::Error) -> Self {
         WrCliError::Io(e)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::de::Error for WrCliError {
+    fn custom<T: fmt::Display>(msg: T) -> Self {
+        WrCliError::ConfigDeserializeError(msg.to_string())
     }
 }
 

@@ -757,3 +757,109 @@ fn safe_write_config_as_refuses_existing() {
         .unwrap_err();
     assert!(matches!(err, WrCliError::ConfigFileExists(_)));
 }
+
+// ── Phase 4: Unmarshal (serde) ───────────────────────────────────────────────
+
+#[cfg(feature = "serde")]
+#[derive(Debug, PartialEq, serde::Deserialize)]
+struct ServerConfig {
+    host: String,
+    port: i64,
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn unmarshal_struct_with_defaults() {
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    struct App {
+        server: ServerConfig,
+        debug: bool,
+        #[serde(default)]
+        tags: Vec<String>,
+    }
+
+    let cfg = Config::new()
+        .set_default("server.host", "127.0.0.1")
+        .set_default("server.port", 8080i64)
+        .set_default("debug", true);
+
+    let app: App = cfg.unmarshal().unwrap();
+    assert_eq!(
+        app.server,
+        ServerConfig {
+            host: "127.0.0.1".to_owned(),
+            port: 8080
+        }
+    );
+    assert!(app.debug);
+    assert!(app.tags.is_empty());
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn unmarshal_vec_and_option() {
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    struct App {
+        tags: Vec<String>,
+        note: Option<String>,
+    }
+
+    let cfg = Config::new().set_default("tags", vec!["a", "b"]);
+    let app: App = cfg.unmarshal().unwrap();
+    assert_eq!(app.tags, vec!["a".to_owned(), "b".to_owned()]);
+    assert_eq!(app.note, None);
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn unmarshal_key_scopes_to_subtree() {
+    let cfg = Config::new()
+        .set_default("server.host", "h")
+        .set_default("server.port", 1i64);
+    let server: ServerConfig = cfg.unmarshal_key("server").unwrap();
+    assert_eq!(
+        server,
+        ServerConfig {
+            host: "h".to_owned(),
+            port: 1
+        }
+    );
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn unmarshal_unit_enum_variant() {
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    #[serde(rename_all = "lowercase")]
+    enum Level {
+        Info,
+        Debug,
+    }
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    struct Log {
+        level: Level,
+    }
+
+    let cfg = Config::new().set_default("log.level", "debug");
+    let log: Log = cfg.unmarshal_key("log").unwrap();
+    assert_eq!(log.level, Level::Debug);
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn unmarshal_type_mismatch_errors() {
+    #[allow(dead_code)]
+    #[derive(Debug, serde::Deserialize)]
+    struct App {
+        port: i64,
+    }
+    let cfg = Config::new().set_default("port", "not-a-number");
+    assert!(cfg.unmarshal::<App>().is_err());
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn unmarshal_missing_key_errors() {
+    let cfg = Config::new();
+    assert!(cfg.unmarshal_key::<ServerConfig>("server").is_err());
+}

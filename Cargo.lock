@@ -636,6 +636,7 @@ dependencies = [
  "log",
  "noyalib",
  "predicates",
+ "serde",
  "serde_json",
  "shellexpand",
  "toml",

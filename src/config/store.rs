@@ -661,6 +661,31 @@ impl Config {
         self.write_config_as(path)
     }
 
+    // ── 역직렬화 (serde) ───────────────────────────────────────────────────────
+
+    /// 모든 레이어를 병합한 설정을 `T`로 역직렬화 (Viper의 `Unmarshal`).
+    #[cfg(feature = "serde")]
+    pub fn unmarshal<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+        let settings = self.all_settings();
+        T::deserialize(super::de::ConfigDeserializer::map(&settings))
+    }
+
+    /// `key` 하위 설정을 `T`로 역직렬화 (Viper의 `UnmarshalKey`).
+    #[cfg(feature = "serde")]
+    pub fn unmarshal_key<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<T> {
+        if let Some(value) = self.get(key) {
+            return T::deserialize(super::de::ConfigDeserializer::value(&value));
+        }
+        let settings = build_settings(self.subtree(key));
+        if settings.is_empty() {
+            return Err(WrCliError::ConfigDeserializeError(format!(
+                "key '{}' not found",
+                key
+            )));
+        }
+        T::deserialize(super::de::ConfigDeserializer::map(&settings))
+    }
+
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
 
     fn env_lookup(&self, key: &str) -> Option<String> {

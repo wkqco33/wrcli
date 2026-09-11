@@ -487,6 +487,23 @@ ctx.config.safe_write_config_as("out.json")?; // Err(ConfigFileExists)
 
 쓰기 지원 포맷: TOML, JSON, INI, dotenv, properties (해당 피처 활성화 시).
 
+### 구조체 역직렬화 (serde)
+
+`serde` 피처를 켜면 설정을 구조체로 바로 매핑할 수 있습니다.
+
+```rust
+#[derive(serde::Deserialize)]
+struct Server {
+    host: String,
+    port: i64,
+}
+
+let server: Server = ctx.config.unmarshal_key("server")?; // 하위 트리
+let app: App = ctx.config.unmarshal()?;                    // 전체 트리
+```
+
+지원: struct/map, `Vec`, `Option`, 원시 타입, unit enum variant.
+
 ---
 
 ## CommandContext
@@ -560,6 +577,7 @@ myapp gen-completion bash > /etc/bash_completion.d/myapp
 | `ConfigParseError` | 설정 파일 파싱 실패 |
 | `ConfigTypeNotSet` | `read_config`에 포맷 미지정 |
 | `ConfigFileExists` | `safe_write_config_as` 대상 파일이 이미 존재 |
+| `ConfigDeserializeError` | `unmarshal` 역직렬화 실패 |
 | `UnsupportedConfigFormat` | 활성화되지 않은 설정 포맷 사용 |
 | `UserError` | `on_run_e`에서 반환한 에러 |
 | `Io` | 설정 파일 읽기 등 I/O 실패 |
@@ -658,6 +676,7 @@ fn unknown_flag_fails() {
 | `ini-config` | ❌ | INI 설정 파일 지원 |
 | `dotenv-config` | ❌ | `.env` / dotenv 설정 파일 지원 |
 | `properties-config` | ❌ | Java properties 설정 파일 지원 |
+| `serde` | ❌ | `unmarshal`/`unmarshal_key` 구조체 역직렬화 |
 
 ```toml
 # 모든 형식 활성화

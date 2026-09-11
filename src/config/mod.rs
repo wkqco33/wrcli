@@ -1,3 +1,5 @@
+#[cfg(feature = "serde")]
+mod de;
 mod parser;
 mod settings;
 mod store;

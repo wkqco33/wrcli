@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | T1 저위험 | Set/IsSet/Alias/구분자·env replacer/추가 getter | 완료 |
 | T2 중위험 | AllKeys/AllSettings/Map getter/Sub/Merge/Write/신규 포맷 | 완료 |
-| T3 고위험 | Unmarshal(serde), WatchConfig | 예정 |
+| T3 고위험 | Unmarshal(serde), WatchConfig | 진행 중 |
 | 비목표 | Remote(Etcd/Consul/Firestore/NATS), crypt | 제외 |
 
 ## 설계 결정 (승인됨)
@@ -56,11 +56,14 @@ explicit(set) → flag → env → file → default
 - 쓰기 지원: TOML, JSON, INI, dotenv, properties.
 - 테스트: `tests/config.rs` Phase 3 섹션 6개.
 
-### Phase 4 — T3 Unmarshal (다음)
+### Phase 4 — T3 Unmarshal (완료)
 
-- `serde` 피처, `Config::unmarshal<T>()`, `unmarshal_key<T>(key)`.
+- `serde` 옵션 피처, `Config::unmarshal<T>()`, `unmarshal_key<T>(key)`.
+- `ConfigValue` 기반 `Deserializer`(포맷 비의존) + unit enum variant 지원.
+- 에러 `ConfigDeserializeError`.
+- 테스트: `tests/config.rs` Phase 4 섹션 6개.
 
-### Phase 5 — T3 Watch
+### Phase 5 — T3 Watch (다음)
 
 - `watch_config()` + `on_config_change()`, 이후 `notify` 옵션 피처.
 

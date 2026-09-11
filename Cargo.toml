@@ -20,6 +20,7 @@ yaml-config = ["dep:noyalib"]
 ini-config  = []
 dotenv-config = []
 properties-config = []
+serde = ["dep:serde"]
 
 [dependencies]
 indexmap    = "2.14"
@@ -30,6 +31,7 @@ shellexpand = "3"
 toml       = { version = "0.8", optional = true }
 serde_json = { version = "1",   optional = true }
 noyalib    = { version = "0.0", optional = true }
+serde      = { version = "1", optional = true, default-features = false, features = ["derive", "std"] }
 
 [dev-dependencies]
 assert_cmd = "2.2"
