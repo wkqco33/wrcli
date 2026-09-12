@@ -3,7 +3,7 @@
 [![CI](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml/badge.svg)](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml)
 
 Releases are published to crates.io automatically when a matching version tag
-is pushed (for example, `v0.3.0`). Configure the repository secret
+is pushed (for example, `v0.4.0`). Configure the repository secret
 `CARGO_REGISTRY_TOKEN` with a crates.io API token before creating a release tag.
 [![Crates.io](https://img.shields.io/crates/v/wrcli.svg)](https://crates.io/crates/wrcli)
 [![Documentation](https://docs.rs/wrcli/badge.svg)](https://docs.rs/wrcli)
@@ -65,10 +65,10 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 
 ```toml
 [dependencies]
-wrcli = "0.3"
+wrcli = "0.4"
 
 # YAML 설정 파일도 필요한 경우
-wrcli = { version = "0.3", features = ["yaml-config"] }
+wrcli = { version = "0.4", features = ["yaml-config"] }
 ```
 
 ---

@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-12
+
 clig.dev(Command Line Interface Guidelines) 대응 기능을 추가했습니다.
 
 ### Added
