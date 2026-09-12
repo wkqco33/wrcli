@@ -8,3 +8,4 @@ mod command;
 mod dispatch;
 
 pub use command::{Command, RunEFn, RunFn};
+pub use context::OutputFormat;

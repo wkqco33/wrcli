@@ -6,6 +6,15 @@ use super::value::FlagValue;
 use crate::config::Config;
 use crate::error::{Result, WrCliError};
 
+/// 민감 플래그면 실제 값을 `***`로 가린다.
+fn redact(flag: &Flag, value: &str) -> String {
+    if flag.sensitive {
+        "***".to_owned()
+    } else {
+        value.to_owned()
+    }
+}
+
 /// 쉼표 분리 대상 값을 분리하고 공백을 제거. `comma`가 false면 원본 하나.
 fn split_values(s: String, comma: bool) -> Vec<String> {
     if comma {
@@ -322,7 +331,7 @@ impl FlagSet {
                         .map_err(|_| WrCliError::InvalidFlagValue {
                             flag: flag_ref.name.clone(),
                             expected: "integer",
-                            got: part.clone(),
+                            got: redact(flag_ref, &part),
                         })?;
                     parsed.push(n);
                 }
@@ -402,14 +411,20 @@ impl FlagSet {
 
     fn coerce(flag: &Flag, s: &str) -> Result<FlagValue> {
         match &flag.default {
-            FlagValue::String(_) => Ok(FlagValue::String(s.to_owned())),
+            FlagValue::String(_) => {
+                if flag.optional_value && s.eq_ignore_ascii_case("none") {
+                    Ok(FlagValue::String(String::new()))
+                } else {
+                    Ok(FlagValue::String(s.to_owned()))
+                }
+            }
             FlagValue::Int(_) => {
                 s.parse::<i64>()
                     .map(FlagValue::Int)
                     .map_err(|_| WrCliError::InvalidFlagValue {
                         flag: flag.name.clone(),
                         expected: "integer",
-                        got: s.to_owned(),
+                        got: redact(flag, s),
                     })
             }
             FlagValue::Float(_) => {
@@ -418,7 +433,7 @@ impl FlagSet {
                     .map_err(|_| WrCliError::InvalidFlagValue {
                         flag: flag.name.clone(),
                         expected: "float",
-                        got: s.to_owned(),
+                        got: redact(flag, s),
                     })
             }
             FlagValue::Bool(_) => match s {
@@ -427,7 +442,7 @@ impl FlagSet {
                 _ => Err(WrCliError::InvalidFlagValue {
                     flag: flag.name.clone(),
                     expected: "bool (true/false/1/0/yes/no)",
-                    got: s.to_owned(),
+                    got: redact(flag, s),
                 }),
             },
             FlagValue::StringVec(_) | FlagValue::IntVec(_) => {

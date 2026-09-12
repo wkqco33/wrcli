@@ -41,6 +41,19 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - **포맷**: TOML·JSON(기본), YAML·INI·dotenv·Java properties(피처)
 - 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
 - `CommandContext` getter: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_int_vec`/`get_duration`/`get_time`/`get_size_in_bytes`/`get_string_map`/`is_set`
+- **내장 `help` 서브커맨드** — `app help`, `app help sub [subsub]`
+- **help 예제·지원·문서 링크** — `example`, `support_url`, `docs_url`(`{command}` 치환, 하위 상속)
+- **러너 없는 커맨드 정책** — 서브커맨드만 있으면 help + 종료 코드 0, `help_on_missing_runner()`
+- **표준 플래그** — `standard_flags()`: `-q/--quiet`, `-f/--force`, `--no-input`, `--no-color`, `--plain`, `--json`, `--color`, `--confirm`
+- **출력 포맷** — `OutputFormat`(Human/Plain/Json), `Table::render_plain()`
+- **대화형 프롬프트** — `confirm`, `confirm_severe`, `prompt_password` (TTY/`--no-input` 안전)
+- **민감 플래그** — `Flag::sensitive()` 값 마스킹
+- **선택적 값** — `Flag::optional_value()` (`none` = 값 없음)
+- **`-` 입출력** — `wrcli::io::{open_reader, open_writer, read_to_string}`
+- **색상 정책** — `FORCE_COLOR`/`NO_COLOR`/`TERM=dumb`/`*_NO_COLOR`/`--no-color`, `ColorChoice`
+- **페이저** — `style::pager::page` (`PAGER`, 기본 `less -FIRX`)
+- **SIGINT** — `signal` 피처, `interrupt_message` (종료 코드 130)
+- **버그 리포트 URL** — `bug_report_url`
 - **Completion 스크립트 생성** (bash / zsh / fish)
 - 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`
 - `execute_with()` — 실제 argv 없이 인수를 직접 주입해 단위 테스트 가능

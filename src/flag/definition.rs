@@ -17,6 +17,10 @@ pub struct Flag {
     pub inherited: bool,
     /// `StringVec`/`IntVec` 값을 쉼표로 분리할지 여부 (opt-in).
     pub comma_separated: bool,
+    /// 선택적 값 플래그인지 여부 (`none` = 값 없음).
+    pub optional_value: bool,
+    /// 민감한 값 여부 — 도움말 기본값과 에러 메시지에서 가린다.
+    pub sensitive: bool,
 }
 
 impl Flag {
@@ -32,6 +36,8 @@ impl Flag {
             deprecated: None,
             inherited: false,
             comma_separated: false,
+            optional_value: false,
+            sensitive: false,
         }
     }
 
@@ -65,6 +71,24 @@ impl Flag {
     /// `StringVec`/`IntVec`에서 `--tag a,b,c`를 여러 값으로 분리 (기본은 분리 안 함).
     pub fn comma_separated(mut self) -> Self {
         self.comma_separated = true;
+        self
+    }
+
+    /// 값이 선택적인 플래그로 표시한다.
+    ///
+    /// 이때 특수 단어 `none`(대소문자 무시)은 "값 없음"(빈 문자열)을 의미한다.
+    /// clig.dev: "If a flag can accept an optional value, allow a special word like 'none'."
+    pub fn optional_value(mut self) -> Self {
+        self.optional_value = true;
+        self
+    }
+
+    /// 민감한 값(비밀번호·토큰 등)을 받는 플래그로 표시한다.
+    ///
+    /// 값은 도움말의 기본값 표시와 에러 메시지에서 `***`로 가려진다.
+    /// clig.dev: 가능하면 플래그 대신 파일/stdin으로 비밀을 받을 것.
+    pub fn sensitive(mut self) -> Self {
+        self.sensitive = true;
         self
     }
 }

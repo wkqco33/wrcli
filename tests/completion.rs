@@ -110,7 +110,7 @@ fn complete_suggests_subcommands() {
         .subcommand(Command::new("config"));
     let mut c = cmd.complete(&["".to_owned()]);
     c.sort();
-    assert_eq!(c, vec!["config", "serve"]);
+    assert_eq!(c, vec!["config", "help", "serve"]);
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn complete_hides_hidden_entries() {
         .flag(Flag::new("skipped", FlagValue::Bool(false), "skipped").hidden());
     let mut subs = cmd.complete(&["".to_owned()]);
     subs.sort();
-    assert_eq!(subs, vec!["visible"]);
+    assert_eq!(subs, vec!["help", "visible"]);
     assert_eq!(cmd.complete(&["--s".to_owned()]), vec!["--shown"]);
 }
 

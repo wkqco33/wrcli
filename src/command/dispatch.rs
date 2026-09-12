@@ -3,11 +3,39 @@ use super::context::CommandContext;
 use super::help;
 use crate::config::Config;
 use crate::error::{Result, WrCliError};
-use crate::flag::{FlagSet, FlagValue};
+use crate::flag::{Flag, FlagSet, FlagValue};
+use crate::style::{ColorChoice, reset_color_choice, set_color_choice};
 
 /// 값을 요구하는(bool이 아닌) 플래그인지 여부.
 pub(crate) fn takes_value(default: &FlagValue) -> bool {
     !matches!(default, FlagValue::Bool(_))
+}
+
+/// `--no-color` / `--color=<when>`을 원시 argv에서 스캔한다.
+///
+/// 도움말 자체도 색상 판정을 하므로 플래그 파싱·서브커맨드 라우팅 전에 적용한다.
+fn scan_color_flags(args: &[String]) -> Option<ColorChoice> {
+    let mut choice = None;
+    for (i, a) in args.iter().enumerate() {
+        if a == "--no-color" {
+            choice = Some(ColorChoice::Never);
+        } else if let Some(v) = a.strip_prefix("--color=") {
+            choice = Some(parse_color_choice(v));
+        } else if a == "--color"
+            && let Some(v) = args.get(i + 1)
+        {
+            choice = Some(parse_color_choice(v));
+        }
+    }
+    choice
+}
+
+fn parse_color_choice(value: &str) -> ColorChoice {
+    match value.to_ascii_lowercase().as_str() {
+        "always" => ColorChoice::Always,
+        "never" => ColorChoice::Never,
+        _ => ColorChoice::Auto,
+    }
 }
 
 /// 수집된 플래그 제약 그룹을 리프 커맨드의 실제 입력에 대해 검증.
@@ -109,19 +137,32 @@ impl Command {
 
     /// 테스트용 변형: 주어진 인자 목록을 파싱하고 실행.
     pub fn execute_with(mut self, args: Vec<String>) -> Result<()> {
+        #[cfg(feature = "signal")]
+        if let Some(msg) = self.interrupt_message {
+            crate::signal::install(msg);
+        }
+        // `--no-color`/`--color`는 도움말 렌더링 전에 반영되어야 하므로 원시 argv를 먼저 훑는다.
+        let color = scan_color_flags(&args);
+        if let Some(choice) = color {
+            set_color_choice(choice);
+        }
         let mut config = self.config.take().unwrap_or_default();
         let mut pre_chain: Vec<RunFn> = Vec::new();
         let mut post_chain: Vec<RunFn> = Vec::new();
         let mut command_path: Vec<String> = Vec::new();
         let mut groups: Vec<FlagGroup> = Vec::new();
-        self.dispatch(
+        let result = self.dispatch(
             args,
             &mut config,
             &mut pre_chain,
             &mut post_chain,
             &mut command_path,
             &mut groups,
-        )
+        );
+        if color.is_some() {
+            reset_color_choice();
+        }
+        result
     }
 
     /// 실행 후 오류가 나면 stderr에 출력하고 프로세스를 종료.
@@ -129,10 +170,16 @@ impl Command {
     /// 성공하면 종료 코드 0, 사용법 오류는 2, 그 외는 1로 종료한다.
     /// 테스트에서 호출하면 테스트 프로세스가 종료되므로 `execute()`를 사용할 것.
     pub fn execute_or_exit(self) -> ! {
+        let bug_report = self.bug_report_url.clone();
         match self.execute() {
             Ok(()) => std::process::exit(0),
             Err(e) => {
                 eprintln!("Error: {}", e);
+                if !e.is_usage_error()
+                    && let Some(url) = bug_report
+                {
+                    eprintln!("\nThis looks like a bug. Please report it: {}", url);
+                }
                 std::process::exit(e.exit_code());
             }
         }
@@ -149,6 +196,16 @@ impl Command {
         groups: &mut Vec<FlagGroup>,
     ) -> Result<()> {
         command_path.push(self.name.clone());
+
+        // 내장 `help` 서브커맨드: 사용자가 `help`를 직접 등록하지 않았을 때만 동작한다.
+        if !self.has_subcommand_named("help")
+            && let Some(idx) = find_positional_candidate(&args, &self.flags)
+            && args[idx] == "help"
+        {
+            let target: Vec<String> = args[idx + 1..].to_vec();
+            return self.dispatch_help(&target, command_path.as_slice());
+        }
+
         groups.extend(
             self.mutually_exclusive
                 .iter()
@@ -206,6 +263,13 @@ impl Command {
             for flag in self.flags.persistent_flags() {
                 child.flags.add_inherited(flag);
             }
+            // 문서/지원 링크는 하위 커맨드가 직접 정의하지 않으면 상속된다.
+            if child.support_url.is_none() {
+                child.support_url = self.support_url.clone();
+            }
+            if child.docs_url.is_none() {
+                child.docs_url = self.docs_url.clone();
+            }
 
             if meta {
                 return child.dispatch(args, config, pre_chain, post_chain, command_path, groups);
@@ -228,14 +292,11 @@ impl Command {
 
         if found_help {
             help::print_help(
-                &self.name,
-                &self.short,
-                &self.long,
-                &self.version,
-                self.usage_args.as_deref(),
+                &self,
                 &self.flags,
-                &self.subcommands,
                 command_path,
+                self.support_url.as_deref(),
+                self.docs_url.as_deref(),
             );
             return Ok(());
         }
@@ -251,26 +312,7 @@ impl Command {
         {
             let name = args[idx].clone();
             log::warn!("unknown subcommand '{}' for '{}'", name, self.name);
-            let mut suggestions = crate::suggest::closest(
-                &name,
-                self.subcommands.iter().filter(|c| !c.hidden).flat_map(|c| {
-                    std::iter::once(c.name.as_str()).chain(c.aliases.iter().map(String::as_str))
-                }),
-            );
-            for cmd in self.subcommands.iter().filter(|c| !c.hidden) {
-                let explicit = cmd
-                    .suggest_for
-                    .iter()
-                    .any(|s| s.eq_ignore_ascii_case(&name));
-                if explicit && !suggestions.contains(&cmd.name) {
-                    suggestions.push(cmd.name.clone());
-                }
-            }
-            return Err(WrCliError::UnknownSubcommand {
-                name,
-                parent: self.name.clone(),
-                suggestions,
-            });
+            return Err(self.unknown_subcommand_error(&name, &self.name));
         }
 
         // ── 리프 커맨드 ──────────────────────────────────────────────────────
@@ -316,16 +358,19 @@ impl Command {
         } else if let Some(ref f) = self.run {
             f(&ctx);
         } else {
-            help::print_help(
-                &self.name,
-                &self.short,
-                &self.long,
-                &self.version,
-                self.usage_args.as_deref(),
-                &self.flags,
-                &self.subcommands,
-                command_path,
-            );
+            // 서브커맨드만 가진 상위 커맨드는 도움말을 보여주고 성공으로 끝낸다 (Cobra 동작).
+            let has_visible_subcommands = self.subcommands.iter().any(|c| !c.hidden);
+            if has_visible_subcommands || self.help_on_missing_runner {
+                help::print_help(
+                    &self,
+                    &self.flags,
+                    command_path,
+                    self.support_url.as_deref(),
+                    self.docs_url.as_deref(),
+                );
+                return Ok(());
+            }
+            log::warn!("command '{}' has no run handler", self.name);
             return Err(WrCliError::CommandHasNoRunner(self.name.clone()));
         }
 
@@ -338,6 +383,52 @@ impl Command {
 
         log::trace!("라이프사이클 훅 실행 완료: {}", command_path.join(" "));
 
+        Ok(())
+    }
+
+    /// 내장 `help` 서브커맨드 처리: `target` 경로의 커맨드 도움말을 출력한다.
+    ///
+    /// 경로 중간에 상위 커맨드의 persistent 플래그가 있으면 상속된 것으로 표시해
+    /// `Global Flags:` 섹션에 노출한다.
+    fn dispatch_help(&self, target: &[String], command_path: &[String]) -> Result<()> {
+        let mut cmd = self;
+        let mut full_path = command_path.to_vec();
+        let mut inherited: Vec<Flag> = Vec::new();
+        let mut support_url = self.support_url.clone();
+        let mut docs_url = self.docs_url.clone();
+        for seg in target {
+            for f in cmd.flags.persistent_flags() {
+                inherited.push(f.clone());
+            }
+            if cmd.support_url.is_some() {
+                support_url = cmd.support_url.clone();
+            }
+            if cmd.docs_url.is_some() {
+                docs_url = cmd.docs_url.clone();
+            }
+            let Some(next) = cmd.find_subcommand(seg) else {
+                return Err(cmd.unknown_subcommand_error(seg, &full_path.join(" ")));
+            };
+            cmd = next;
+            full_path.push(cmd.name.clone());
+        }
+        if cmd.support_url.is_some() {
+            support_url = cmd.support_url.clone();
+        }
+        if cmd.docs_url.is_some() {
+            docs_url = cmd.docs_url.clone();
+        }
+        let mut flags = cmd.flags.clone();
+        for f in &inherited {
+            flags.add_inherited(f);
+        }
+        help::print_help(
+            cmd,
+            &flags,
+            &full_path,
+            support_url.as_deref(),
+            docs_url.as_deref(),
+        );
         Ok(())
     }
 }

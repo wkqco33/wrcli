@@ -5,6 +5,13 @@ use super::dispatch::takes_value;
 use crate::error::Result;
 use crate::flag::Flag;
 
+/// 내장 `help` 서브커맨드를 목록에 추가할지 여부.
+///
+/// 사용자가 `help`를 직접 등록했거나 보여줄 서브커맨드가 없으면 추가하지 않는다.
+fn builtin_help_available(cmd: &Command) -> bool {
+    cmd.find_subcommand("help").is_none() && cmd.subcommands.iter().any(|c| !c.hidden)
+}
+
 /// Recursively collect subcommand names reachable from `cmd`.
 fn collect_commands(cmd: &Command, out: &mut Vec<String>) {
     for sub in &cmd.subcommands {
@@ -50,6 +57,9 @@ fn shell_bash(cmd: &Command, out: &mut String) {
 
     let mut commands = Vec::new();
     collect_commands(cmd, &mut commands);
+    if builtin_help_available(cmd) {
+        commands.push("help".to_owned());
+    }
     if !commands.is_empty() {
         out.push_str("  if [[ ${COMP_CWORD} -eq 1 ]]; then\n");
         out.push_str("    COMPREPLY=( $(compgen -W \"");
@@ -61,7 +71,7 @@ fn shell_bash(cmd: &Command, out: &mut String) {
 
     let mut flags: Vec<&Flag> = Vec::new();
     collect_flags(cmd, &mut flags);
-    let words: Vec<String> = flags
+    let mut words: Vec<String> = flags
         .iter()
         .flat_map(|f| {
             f.short
@@ -69,6 +79,10 @@ fn shell_bash(cmd: &Command, out: &mut String) {
                 .unwrap_or_else(|| vec![format!("--{}", f.name)])
         })
         .collect();
+    words.push("--help".to_owned());
+    if cmd.version.is_some() {
+        words.push("--version".to_owned());
+    }
     out.push_str("  COMPREPLY=( $(compgen -W \"");
     out.push_str(&words.join(" "));
     out.push_str("\" -- \"$cur\") )\n");
@@ -88,6 +102,9 @@ fn shell_zsh(cmd: &Command, out: &mut String) {
 
     let mut commands = Vec::new();
     collect_commands(cmd, &mut commands);
+    if builtin_help_available(cmd) {
+        commands.push("help".to_owned());
+    }
     let mut flags: Vec<&Flag> = Vec::new();
     collect_flags(cmd, &mut flags);
 
@@ -124,6 +141,9 @@ fn shell_fish(cmd: &Command, out: &mut String) {
 
     let mut commands = Vec::new();
     collect_commands(cmd, &mut commands);
+    if builtin_help_available(cmd) {
+        commands.push("help".to_owned());
+    }
     for name in &commands {
         let _ = writeln!(
             out,
@@ -254,6 +274,9 @@ impl Command {
             .filter(|c| !c.hidden)
             .map(|c| c.name.clone())
             .collect();
+        if std::ptr::eq(cmd, self) && builtin_help_available(cmd) {
+            out.push("help".to_owned());
+        }
         if let Some(f) = &cmd.arg_candidates {
             out.extend(f(&positional));
         }

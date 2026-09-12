@@ -633,6 +633,7 @@ dependencies = [
  "assert_cmd",
  "env_logger",
  "indexmap",
+ "libc",
  "log",
  "noyalib",
  "predicates",

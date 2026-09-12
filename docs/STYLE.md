@@ -15,6 +15,7 @@ rich 라이브러리에서 영감을 받아 색상, 텍스트 속성, 테이블,
 - [Rule](#rule)
 - [Tree](#tree)
 - [Progress](#progress)
+- [PAGER와 색상 정책](#pager와-색상-정책)
 - [편의 출력 헬퍼](#편의-출력-헬퍼)
 
 ---
@@ -27,8 +28,14 @@ use wrcli::style::{Color, Style, Table, Panel, Rule, Tree, Text, Progress, Align
 
 스타일링은 다음 경우 **자동으로 비활성화**됩니다:
 
-- `NO_COLOR` 환경변수가 설정된 경우
+- `NO_COLOR`이 비어 있지 않게 설정된 경우
+- `TERM=dumb`인 경우
+- 앱 전용 `*_NO_COLOR`(예: `MYAPP_NO_COLOR`)가 설정된 경우
 - 출력 스트림이 터미널이 아닌 경우(파이프 등)
+
+`FORCE_COLOR`(비어 있지 않음)는 감지를 무시하고 색상을 켜며, 전역 override
+(`--no-color` / `--color=<when>`)가 가장 우선합니다. 자세한 규칙은
+“PAGER와 색상 정책” 참고.
 
 모든 렌더링 타입은 `render(styled: bool)`로 문자열을 얻고, `print()`로
 stdout에 출력합니다. `styled`는 `stdout_is_styled()`로 감지합니다.
@@ -286,6 +293,51 @@ Downloading [########------------]  42%
 | `.bar_style(Style)` | 채워진 부분 스타일 (기본: 녹색) |
 | `.filled_char(char)` | 채워진 문자 (기본 `#`) |
 | `.empty_char(char)` | 빈 문자 (기본 `-`) |
+
+### 애니메이션 안전 출력
+
+`draw()`는 stdout이 TTY일 때만 현재 줄을 덮어쓰고, `finish()`는 비TTY에서
+최종 상태를 한 줄로 출력합니다. 파이프·CI 로그에서 애니메이션이 남지 않습니다.
+
+```rust
+use wrcli::style::Progress;
+
+let bar = Progress::new(100).progress(42).width(20);
+for n in 0..=100 {
+    bar.progress(n).draw();   // 비TTY에서는 아무것도 출력하지 않음
+    std::thread::sleep(std::time::Duration::from_millis(10));
+}
+bar.finish();
+```
+
+---
+
+## PAGER와 색상 정책
+
+긴 출력은 `pager::page()`로 넘기면 stdout이 TTY일 때만 `PAGER`
+(기본 `less -FIRX`)로 보내고, 파이프·CI에서는 그대로 출력합니다.
+
+```rust
+wrcli::style::pager::page(&long_text)?;
+```
+
+색상 우선순위(높음→낮음):
+
+1. 전역 override — `--no-color`(Never) / `--color=always|never|auto`
+2. `FORCE_COLOR`(비어 있지 않음)
+3. `NO_COLOR`(비어 있지 않음)
+4. `TERM=dumb`
+5. 앱 전용 `*_NO_COLOR`
+6. TTY 여부
+
+```rust
+use wrcli::style::{ColorChoice, set_color_choice, set_no_color_env};
+
+set_no_color_env(Some("MYAPP_NO_COLOR"));  // 앱 전용 변수 등록
+set_color_choice(ColorChoice::Always);     // 전역 override
+```
+
+색상과 무관한 TTY 확인은 `stdout_is_terminal()` / `stdin_is_terminal()`을 쓴다.
 
 ---
 

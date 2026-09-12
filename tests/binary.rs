@@ -244,3 +244,162 @@ fn execute_or_exit_user_error_exits_one() {
         .code(1)
         .stderr(predicate::str::contains("boom"));
 }
+
+// ── messaging stream conventions (clig.dev) ──────────────────────────────────
+
+#[test]
+fn messaging_streams_follow_clig_conventions() {
+    app()
+        .args(["messages"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("done"))
+        .stdout(predicate::str::contains("careful").not())
+        .stdout(predicate::str::contains("note").not())
+        .stdout(predicate::str::contains("bad").not())
+        .stderr(predicate::str::contains("careful"))
+        .stderr(predicate::str::contains("note"))
+        .stderr(predicate::str::contains("bad"));
+}
+
+// ── help subcommand / no-args / examples / support (clig.dev) ────────────────
+
+#[test]
+fn builtin_help_subcommand_shows_root_help() {
+    app()
+        .args(["help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Available Commands:"))
+        .stdout(predicate::str::contains("greet"));
+}
+
+#[test]
+fn builtin_help_subcommand_resolves_subcommand() {
+    app()
+        .args(["help", "greet"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("testapp greet <name> [flags]"));
+}
+
+#[test]
+fn builtin_help_subcommand_unknown_target_fails() {
+    app()
+        .args(["help", "ghost"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown command"));
+}
+
+#[test]
+fn no_args_parent_prints_help_and_succeeds() {
+    app()
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Available Commands:"));
+}
+
+#[test]
+fn help_leads_with_examples_before_description() {
+    let out = app().args(["help"]).output().expect("run testapp");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let ex = stdout.find("Examples:").expect("Examples section missing");
+    let flags = stdout.find("Flags:").expect("Flags section missing");
+    assert!(ex < flags, "examples must precede flags:\n{stdout}");
+    assert!(
+        stdout.contains("testapp greet Alice"),
+        "example text missing:\n{stdout}"
+    );
+}
+
+#[test]
+fn help_shows_support_and_docs_links() {
+    app()
+        .args(["help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Support:"))
+        .stdout(predicate::str::contains(
+            "https://github.com/wkqco33/wrcli/issues",
+        ))
+        .stdout(predicate::str::contains("Documentation:"))
+        .stdout(predicate::str::contains("https://docs.example.com/testapp"));
+}
+
+#[test]
+fn subcommand_help_docs_url_substitutes_command_path() {
+    app()
+        .args(["greet", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("docs.example.com/testapp greet"));
+}
+
+// ── standard flags / color / plain (clig.dev) ────────────────────────────────
+
+#[test]
+fn force_color_env_enables_color_in_help() {
+    app()
+        .env_remove("NO_COLOR")
+        .env("FORCE_COLOR", "1")
+        .args(["--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\u{1b}["));
+}
+
+#[test]
+fn no_color_flag_wins_over_force_color() {
+    app()
+        .env_remove("NO_COLOR")
+        .env("FORCE_COLOR", "1")
+        .args(["--no-color", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\u{1b}[").not());
+}
+
+#[test]
+fn color_flag_never_disables_color() {
+    app()
+        .env_remove("NO_COLOR")
+        .env("FORCE_COLOR", "1")
+        .args(["--color", "never", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\u{1b}[").not());
+}
+
+#[test]
+fn plain_flag_renders_tab_separated_records() {
+    app()
+        .args(["list", "--plain"])
+        .assert()
+        .success()
+        .stdout("Name\tVersion\nwrcli\t0.3.0\nserde\t1.0\n");
+}
+
+#[test]
+fn standard_flags_are_listed_in_help() {
+    app()
+        .args(["--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("-q, --quiet"))
+        .stdout(predicate::str::contains("--no-input"))
+        .stdout(predicate::str::contains("--plain"))
+        .stdout(predicate::str::contains("--json"));
+}
+
+// ── sensitive flags (clig.dev: don't leak secrets) ───────────────────────────
+
+#[test]
+fn sensitive_flag_default_is_hidden_but_flag_is_listed() {
+    app()
+        .args(["--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--token"))
+        .stdout(predicate::str::contains("super-secret").not());
+}

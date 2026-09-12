@@ -7,6 +7,14 @@
 - [설치](#설치)
 - [커맨드](#커맨드)
 - [플래그](#플래그)
+- [Help 규약 (clig.dev)](#help-규약-cligdev)
+- [표준 플래그와 출력 포맷](#표준-플래그와-출력-포맷)
+- [대화형 입력과 확인 프롬프트](#대화형-입력과-확인-프롬프트)
+- [민감 플래그](#민감-플래그)
+- [선택적 값 플래그](#선택적-값-플래그)
+- [표준 입출력 대체](#표준-입출력-대체)
+- [색상 정책과 페이저](#색상-정책과-페이저)
+- [Ctrl-C(SIGINT) 처리](#ctrl-csigint-처리)
 - [숨김 · Deprecated · 플래그 제약](#숨김--deprecated--플래그-제약)
 - [포지셔널 인수 검증](#포지셔널-인수-검증)
 - [라이프사이클 훅](#라이프사이클-훅)
@@ -275,6 +283,233 @@ app deploy --profile prod   # 오류: 알 수 없는 플래그
 부모 로컬 플래그는 help/completion 목록에 상속되지 않으므로, 리프의 `Flags`
 섹션에는 나타나지 않습니다. `--help`/`--version`이 포함되면 부모는 플래그를
 소비하지 않고 리프가 그대로 처리합니다.
+
+---
+
+## Help 규약 (clig.dev)
+
+### 내장 `help` 서브커맨드
+
+`help`를 직접 서브커맨드로 등록하지 않았다면 내장 `help`가 자동으로 동작한다.
+사용자가 `help`를 등록하면 내장 동작은 비활성화된다.
+
+```sh
+myapp help                # 루트 도움말
+myapp help config         # 서브커맨드 도움말 (별칭도 가능)
+myapp help config get     # 중첩 경로
+```
+
+경로 중간에 없은 이름을 주면 제안(`Did you mean`)과 함께 `UnknownSubcommand` 오류를 낸다.
+completion 스크립트에도 `help`가 후보로 포함된다.
+
+### 예제 · 지원 링크 · 문서 링크
+
+clig.dev는 “예제를 앞에 두고”, 피드백 경로와 웹 문서 링크를 도움말에 넣으라고 권한다.
+예제는 Usage 바로 다음에 출력된다.
+
+```rust
+Command::new("myapp")
+    .short("My CLI")
+    .example("myapp greet Alice")
+    .example("myapp greet Bob --upper --count 3")
+    .support_url("https://github.com/me/myapp/issues")
+    .docs_url("https://docs.example.com/{command}") // {command} 치환
+```
+
+`docs_url`/`support_url`은 하위 커맨드가 직접 정의하지 않으면 상속된다.
+따라서 `myapp greet --help`는 `https://docs.example.com/myapp greet` 링크를 보여 준다.
+
+### 러너 없는 커맨드
+
+서브커맨드만 가진 상위 커맨드를 인자 없이 실행하면 도움말을 출력하고 **성공(종료 코드 0)** 으로 끝난다.
+서브커맨드도 러너도 없는 리프 커맨드는 실수가 많으므로 `CommandHasNoRunner` 오류를 낸다.
+리프에서도 도움말만 보여주고 성공으로 끝내려면 `help_on_missing_runner()`를 쓴다.
+
+```rust
+Command::new("myapp").short("My CLI").help_on_missing_runner()
+```
+
+### 버그 리포트 URL
+
+`bug_report_url`을 설정하면 `execute_or_exit()`이 사용법 오류가 아닌 예상 밖 오류에서
+해당 URL을 안내한다.
+
+```rust
+Command::new("myapp").bug_report_url("https://github.com/me/myapp/issues/new")
+```
+
+---
+
+## 표준 플래그와 출력 포맷
+
+`standard_flags()`는 clig.dev가 반복해 언급하는 관례를 한 번에 등록한다.
+persistent 플래그이므로 모든 서브커맨드에 전파되고 `app --plain list`와 `app list --plain`이 모두 동작한다.
+
+| 플래그 | 단축 | 접근자 |
+| ---- | ---- | ---- |
+| `--quiet` | `-q` | `ctx.is_quiet()` |
+| `--force` | `-f` | `ctx.is_force()` |
+| `--no-input` | | `ctx.no_input()` |
+| `--no-color` | | |
+| `--plain` | | `ctx.is_plain()` |
+| `--json` | | `ctx.is_json()` |
+| `--color <when>` | | `style::color_choice()` |
+| `--confirm <name>` | | `ctx.confirm_severe()` |
+
+`--plain`과 `--json`은 `mutually_exclusive`로 검증된다.
+
+```rust
+use wrcli::{Command, OutputFormat};
+
+Command::new("myapp")
+    .standard_flags()
+    .on_run(|ctx| {
+        match ctx.output_format() {
+            OutputFormat::Human => { /* styled table */ }
+            OutputFormat::Plain => { /* 한 줄에 레코드 하나 */ }
+            OutputFormat::Json => { /* JSON */ }
+        }
+    });
+```
+
+테이블은 `Table::render_plain()`으로 테두리 없이 탭 구분 한 줄/레코드로 출력할 수 있다.
+
+```rust
+use wrcli::style::Table;
+let tsv = Table::new()
+    .headers(["Name", "Version"])
+    .row(["wrcli", "0.3.0"])
+    .render_plain();
+assert_eq!(tsv, "Name\tVersion\nwrcli\t0.3.0\n");
+```
+
+---
+
+## 대화형 입력과 확인 프롬프트
+
+clig.dev: “Never require a prompt”, “Only use prompts if stdin is an interactive terminal”,
+“Confirm before doing anything dangerous”.
+
+```rust
+.on_run_e(|ctx| {
+    if ctx.confirm("Delete 3 items?")? {
+        // --force가 있거나 사용자가 y를 입력한 경우
+    }
+    ctx.confirm_severe("myapp")?;   // --confirm="myapp" 또는 이름 직접 입력
+    let pw = ctx.prompt_password("Password: ")?; // unix: stty -echo
+    Ok(())
+})
+```
+
+동작 규칙:
+
+- `--force`(`-f`)가 있으면 `confirm()`은 프롬프트 없이 `true`.
+- `--confirm="<name>"`이 일치하면 `confirm_severe()`가 `true`. 값이 다르면 `ConfirmationFailed`.
+- `--no-input`이거나 stdin이 TTY가 아니면 프롬프트 대신 `InteractiveInputRequired` 오류를 내고,
+  대신 사용할 플래그(`--force`, `--confirm="<name>"`)를 안내한다. (`cat`처럼 hang 하지 않음)
+- `ctx.is_interactive()`로 프롬프트 가능 여부를 직접 확인할 수 있다.
+- `prompt_password()`는 unix에서 `stty -echo`로 입력을 가린다. 다른 플랫폼에서는 echo를 끌 수 없다.
+
+---
+
+## 민감 플래그
+
+clig.dev는 비밀을 플래그로 직접 받지 말 것을 권장한다. 부득이한 경우 최소한
+값이 도움말·오류 메시지로 새지 않도록 `sensitive()`를 붙인다.
+
+```rust
+Flag::new("token", FlagValue::String(String::new()), "API token").sensitive()
+```
+
+- 도움말에서 기본값 표시를 생략한다.
+- 값 변환 오류 메시지에서 값을 `***`로 가린다.
+
+비밀은 `--password-file`이나 stdin으로 받는 것을 권장한다.
+
+---
+
+## 선택적 값 플래그
+
+값이 선택적인 플래그는 특수 단어 `none`을 “값 없음”(빈 문자열)으로 해석한다.
+clig.dev: “allow a special word like 'none'. Don't just use a blank value.”
+
+```rust
+Flag::new("config", FlagValue::String("/etc/app.toml".to_owned()), "config path").optional_value()
+// --config /tmp/x.toml  -> "/tmp/x.toml"
+// --config none        -> ""
+```
+
+---
+
+## 표준 입출력 대체
+
+clig.dev: “If input or output is a file, support `-` to read from stdin or write to stdout.”
+
+```rust
+use wrcli::io::{open_reader, open_writer, read_to_string};
+use std::io::{Read, Write};
+
+fn cat(path: &str) -> wrcli::Result<()> {
+    let mut buf = String::new();
+    open_reader(path)?.read_to_string(&mut buf)?;   // "-" -> stdin
+    open_writer("-")?.write_all(buf.as_bytes())?;   // "-" -> stdout
+    Ok(())
+}
+```
+
+`read_to_string(path)`는 `-`면 stdin에서 전체를 읽는다.
+
+---
+
+## 색상 정책과 페이저
+
+색상 사용 여부는 clig.dev 규칙을 따른다. 우선순위는 다음과 같다.
+
+1. 전역 override (`--no-color` = Never, `--color=always|never|auto`)
+2. `FORCE_COLOR`(비어 있지 않음)
+3. `NO_COLOR`(비어 있지 않음)
+4. `TERM=dumb`
+5. 앱 전용 `*_NO_COLOR`
+6. stdout/stderr이 TTY인지 여부
+
+```rust
+use wrcli::style::{ColorChoice, set_color_choice, set_no_color_env, stdout_is_styled};
+
+set_no_color_env(Some("MYAPP_NO_COLOR"));
+set_color_choice(ColorChoice::Never);
+assert!(!stdout_is_styled());
+```
+
+`stdout_is_terminal()` / `stdin_is_terminal()`로 색상과 무관한 TTY 여부를 확인할 수 있다.
+
+긴 출력은 `style::pager::page(&text)`로 넘기면 stdout이 TTY일 때만 `PAGER`(기본 `less -FIRX`)로
+보내고, 파이프/CI에서는 그대로 출력한다.
+
+```rust
+wrcli::style::pager::page(&long_text)?;
+```
+
+`Progress::draw()` / `Progress::finish()`도 비TTY에서는 애니메이션(`\r`)을 쓰지 않고
+마지막 상태만 한 줄로 출력한다.
+
+---
+
+## Ctrl-C(SIGINT) 처리
+
+`signal` 피처를 켜면 Ctrl-C 시 즉시 메시지를 출력하고 종료 코드 `130`으로 끝낼 수 있다.
+핸들러는 async-signal-safe 연산만 수행하며 정리(clean-up) 작업을 하지 않는다 (crash-only).
+
+```toml
+wrcli = { version = "0.3", features = ["signal"] }
+```
+
+```rust
+Command::new("myapp")
+    .interrupt_message("interrupted\n")
+    .on_run(|_| { /* 장시간 작업 */ });
+```
+
+피처 없이 사용하려면 `wrcli::signal::install(msg)`를 직접 호출해도 된다.
 
 ---
 
@@ -942,6 +1177,7 @@ fn unknown_flag_fails() {
 | `dotenv-config` | ❌ | `.env` / dotenv 설정 파일 지원 |
 | `properties-config` | ❌ | Java properties 설정 파일 지원 |
 | `serde` | ❌ | `unmarshal`/`unmarshal_key` 구조체 역직렬화 |
+| `signal` | ❌ | Ctrl-C(SIGINT) 핸들러 (`interrupt_message`) |
 
 ```toml
 # 모든 형식 활성화

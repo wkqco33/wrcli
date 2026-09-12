@@ -191,6 +191,21 @@ impl Table {
         buf
     }
 
+    /// `--plain`용 렌더링: 테두리·정렬 없이 한 줄에 레코드 하나 (탭 구분).
+    ///
+    /// `grep`/`awk` 같은 도구로 그대로 파이프할 수 있다.
+    pub fn render_plain(&self) -> String {
+        use std::fmt::Write as _;
+        let mut out = String::new();
+        if !self.headers.is_empty() {
+            let _ = writeln!(out, "{}", self.headers.join("\t"));
+        }
+        for row in &self.rows {
+            let _ = writeln!(out, "{}", row.join("\t"));
+        }
+        out
+    }
+
     fn render_row(
         &self,
         cells: &[String],

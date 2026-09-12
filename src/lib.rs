@@ -33,12 +33,16 @@ pub mod command;
 pub mod config;
 pub mod error;
 pub mod flag;
+pub mod io;
+#[cfg(feature = "signal")]
+pub mod signal;
 pub mod style;
 
 mod suggest;
 
 // Flatten the most-used types to crate root for ergonomics.
 pub use command::Command;
+pub use command::OutputFormat;
 pub use command::context::CommandContext;
 pub use config::{Config, ConfigValue};
 pub use error::{Result, WrCliError};

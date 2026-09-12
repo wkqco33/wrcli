@@ -1,8 +1,8 @@
 use super::args;
 use crate::command::context::CommandContext;
 use crate::config::Config;
-use crate::error::Result;
-use crate::flag::{Flag, FlagSet};
+use crate::error::{Result, WrCliError};
+use crate::flag::{Flag, FlagSet, FlagValue};
 
 /// 인자 없이 실행되는 콜백 타입.
 pub type RunFn = Box<dyn for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync>;
@@ -38,6 +38,19 @@ pub struct Command {
     pub(crate) suggest_for: Vec<String>,
     /// `--help`의 usage 줄에 표시할 포지셔널 힌트 (예: `"<name>"`).
     pub(crate) usage_args: Option<String>,
+    /// help에서 Usage 다음에 표시되는 예제 목록 (clig.dev: 예제를 앞에 둠).
+    pub(crate) examples: Vec<String>,
+    /// help 하단에 표시할 이슈/피드백 URL.
+    pub(crate) support_url: Option<String>,
+    /// help 하단에 표시할 문서 URL. `{command}`가 전체 커맨드 경로로 치환됨.
+    pub(crate) docs_url: Option<String>,
+    /// 예기치 못한 오류 시 `execute_or_exit`이 안내할 버그 리포트 URL.
+    pub(crate) bug_report_url: Option<String>,
+    /// 러너가 없을 때 도움말을 출력하고 성공으로 종료.
+    pub(crate) help_on_missing_runner: bool,
+    /// Ctrl-C 수신 시 출력할 메시지 (`signal` 피처).
+    #[cfg(feature = "signal")]
+    pub(crate) interrupt_message: Option<&'static str>,
 
     pub(crate) flags: FlagSet,
     pub(crate) subcommands: Vec<Command>,
@@ -76,6 +89,13 @@ impl Command {
             deprecated: None,
             suggest_for: Vec::new(),
             usage_args: None,
+            examples: Vec::new(),
+            support_url: None,
+            docs_url: None,
+            bug_report_url: None,
+            help_on_missing_runner: false,
+            #[cfg(feature = "signal")]
+            interrupt_message: None,
             flags,
             subcommands: Vec::new(),
             arg_validator: None,
@@ -143,6 +163,90 @@ impl Command {
         self
     }
 
+    /// help의 Usage 바로 다음에 표시할 예제를 추가한다 (여러 번 호출 가능).
+    pub fn example(mut self, e: &str) -> Self {
+        self.examples.push(e.to_owned());
+        self
+    }
+
+    /// help 하단에 표시할 이슈/피드백 URL.
+    pub fn support_url(mut self, url: &str) -> Self {
+        self.support_url = Some(url.to_owned());
+        self
+    }
+
+    /// help 하단에 표시할 문서 URL. `{command}`는 전체 커맨드 경로로 치환된다.
+    pub fn docs_url(mut self, url: &str) -> Self {
+        self.docs_url = Some(url.to_owned());
+        self
+    }
+
+    /// 예기치 못한 오류 시 [`Command::execute_or_exit`]이 안내할 버그 리포트 URL.
+    pub fn bug_report_url(mut self, url: &str) -> Self {
+        self.bug_report_url = Some(url.to_owned());
+        self
+    }
+
+    /// 러너가 없어도 도움말을 출력하고 성공(종료 코드 0)으로 끝낸다.
+    ///
+    /// 서브커맨드를 가진 상위 커맨드는 이 설정 없이도 자동으로 이 동작을 한다.
+    pub fn help_on_missing_runner(mut self) -> Self {
+        self.help_on_missing_runner = true;
+        self
+    }
+
+    /// Ctrl-C(SIGINT) 수신 시 메시지를 즉시 출력하고 종료 코드 130으로 끝낸다.
+    ///
+    /// `signal` 피처가 필요하다.
+    #[cfg(feature = "signal")]
+    pub fn interrupt_message(mut self, message: &'static str) -> Self {
+        self.interrupt_message = Some(message);
+        self
+    }
+
+    /// 등록된 예제 목록.
+    pub fn examples(&self) -> &[String] {
+        &self.examples
+    }
+
+    /// 이름 또는 별칭으로 서브커맨드 조회.
+    pub(crate) fn find_subcommand(&self, name: &str) -> Option<&Command> {
+        self.subcommands
+            .iter()
+            .find(|c| c.name == name || c.aliases.iter().any(|a| a == name))
+    }
+
+    /// 이름/별칭이 `name`인 서브커맨드가 등록되어 있는지.
+    pub(crate) fn has_subcommand_named(&self, name: &str) -> bool {
+        self.find_subcommand(name).is_some()
+    }
+
+    /// `name`에 대한 편집 거리 기반 서브커맨드 제안 (hidden 제외, `suggest_for` 포함).
+    pub(crate) fn subcommand_suggestions(&self, name: &str) -> Vec<String> {
+        let mut suggestions = crate::suggest::closest(
+            name,
+            self.subcommands.iter().filter(|c| !c.hidden).flat_map(|c| {
+                std::iter::once(c.name.as_str()).chain(c.aliases.iter().map(String::as_str))
+            }),
+        );
+        for cmd in self.subcommands.iter().filter(|c| !c.hidden) {
+            let explicit = cmd.suggest_for.iter().any(|s| s.eq_ignore_ascii_case(name));
+            if explicit && !suggestions.contains(&cmd.name) {
+                suggestions.push(cmd.name.clone());
+            }
+        }
+        suggestions
+    }
+
+    /// 미등록 서브커맨드 오류 생성 (제안 포함).
+    pub(crate) fn unknown_subcommand_error(&self, name: &str, parent: &str) -> WrCliError {
+        WrCliError::UnknownSubcommand {
+            name: name.to_owned(),
+            parent: parent.to_owned(),
+            suggestions: self.subcommand_suggestions(name),
+        }
+    }
+
     /// 이 그룹의 플래그 중 둘 이상을 함께 지정하면 오류.
     pub fn mutually_exclusive(mut self, flags: &[&str]) -> Self {
         self.mutually_exclusive.push(names(flags));
@@ -171,6 +275,55 @@ impl Command {
     pub fn persistent_flag(mut self, mut flag: Flag) -> Self {
         flag.persistent = true;
         self.flags.add(flag);
+        self
+    }
+
+    /// clig.dev 표준 플래그 묶음을 등록한다.
+    ///
+    /// `-q/--quiet`, `-f/--force`, `--no-input`, `--no-color`,
+    /// `--plain`, `--json`, `--color <when>`. `--plain`과 `--json`은 상호 배타로 검증된다.
+    ///
+    /// 앱 전역 관례에 해당하므로 persistent 플래그로 등록되어 모든 서브커맨드에 전파되고,
+    /// `list --plain`과 `--plain list`가 모두 동작한다.
+    pub fn standard_flags(mut self) -> Self {
+        self = self.persistent_flag(
+            Flag::new(
+                "quiet",
+                FlagValue::Bool(false),
+                "suppress non-essential output",
+            )
+            .short('q'),
+        );
+        self = self.persistent_flag(
+            Flag::new("force", FlagValue::Bool(false), "skip confirmation prompts").short('f'),
+        );
+        self = self.persistent_flag(Flag::new(
+            "no-input",
+            FlagValue::Bool(false),
+            "never prompt; fail if input is required",
+        ));
+        self = self.persistent_flag(Flag::new(
+            "no-color",
+            FlagValue::Bool(false),
+            "disable colored output",
+        ));
+        self = self.persistent_flag(Flag::new(
+            "plain",
+            FlagValue::Bool(false),
+            "output plain machine-readable records (one per line)",
+        ));
+        self = self.persistent_flag(Flag::new("json", FlagValue::Bool(false), "output JSON"));
+        self = self.persistent_flag(Flag::new(
+            "color",
+            FlagValue::String("auto".to_owned()),
+            "when to use color: auto, always, never",
+        ));
+        self = self.persistent_flag(Flag::new(
+            "confirm",
+            FlagValue::String(String::new()),
+            "confirm a dangerous action by name (for scripts)",
+        ));
+        self = self.mutually_exclusive(&["plain", "json"]);
         self
     }
 

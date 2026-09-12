@@ -26,17 +26,23 @@ impl HelpStyles {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// 커맨드 하나의 도움말을 stdout에 출력한다.
+///
+/// `flags`는 상속된 persistent 플래그가 병합된 FlagSet일 수 있고,
+/// `support_url`/`docs_url`은 상위 커맨드에서 상속된 유효 값이다.
 pub fn print_help(
-    name: &str,
-    short: &str,
-    long: &str,
-    version: &Option<String>,
-    usage_args: Option<&str>,
+    cmd: &Command,
     flags: &FlagSet,
-    subcommands: &[Command],
     command_path: &[String],
+    support_url: Option<&str>,
+    docs_url: Option<&str>,
 ) {
+    let name = &cmd.name;
+    let short = &cmd.short;
+    let long = &cmd.long;
+    let version = &cmd.version;
+    let usage_args = cmd.usage_args.as_deref();
+    let subcommands = &cmd.subcommands;
     let path = command_path.join(" ");
     let s = HelpStyles::new();
     let visible_subcommands: Vec<&Command> = subcommands.iter().filter(|c| !c.hidden).collect();
@@ -49,6 +55,16 @@ pub fn print_help(
     match usage_args {
         Some(hint) if !hint.is_empty() => println!("  {} {} [flags]", path, hint),
         _ => println!("  {} [flags]", path),
+    }
+
+    // ── Examples ───────────────────────────────────────────────────────────
+    // clig.dev: 사용자는 다른 문서보다 예제를 먼저 본다.
+    if !cmd.examples.is_empty() {
+        println!();
+        println!("{}", s.section.apply("Examples:", s.styled));
+        for example in &cmd.examples {
+            println!("  {}", example);
+        }
     }
 
     // ── Description ───────────────────────────────────────────────────────────
@@ -159,6 +175,20 @@ pub fn print_help(
             path
         );
     }
+
+    // ── Support / Documentation ──────────────────────────────────────────
+    // clig.dev: 피드백 경로와 웹 문서 링크를 도움말에 포함한다.
+    if support_url.is_some() || docs_url.is_some() {
+        println!();
+        if let Some(url) = support_url {
+            println!("{}", s.section.apply("Support:", s.styled));
+            println!("  {}", url);
+        }
+        if let Some(url) = docs_url {
+            println!("{}", s.section.apply("Documentation:", s.styled));
+            println!("  {}", url.replace("{command}", &path));
+        }
+    }
 }
 
 // ── Rendering helpers ─────────────────────────────────────────────────────────
@@ -254,14 +284,15 @@ fn build_flag_rhs(flag: &Flag, s: &HelpStyles) -> String {
     let mut buf = String::with_capacity(flag.usage.len() + 32);
     buf.push_str(&flag.usage);
 
-    let has_default = match &flag.default {
-        FlagValue::Bool(false) | FlagValue::Int(0) => false,
-        FlagValue::Float(f) if *f == 0.0 => false,
-        FlagValue::String(s) if s.is_empty() => false,
-        FlagValue::StringVec(v) if v.is_empty() => false,
-        FlagValue::IntVec(v) if v.is_empty() => false,
-        _ => true,
-    };
+    let has_default = !flag.sensitive
+        && match &flag.default {
+            FlagValue::Bool(false) | FlagValue::Int(0) => false,
+            FlagValue::Float(f) if *f == 0.0 => false,
+            FlagValue::String(s) if s.is_empty() => false,
+            FlagValue::StringVec(v) if v.is_empty() => false,
+            FlagValue::IntVec(v) if v.is_empty() => false,
+            _ => true,
+        };
     if has_default {
         buf.push_str(" (default: ");
         match &flag.default {

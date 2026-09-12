@@ -77,6 +77,18 @@ pub enum WrCliError {
     OneFlagRequired {
         group: Vec<String>,
     },
+
+    /// 대화형 입력이 필요하지만 stdin이 TTY가 아니거나 `--no-input`이 지정됨.
+    InteractiveInputRequired {
+        /// 대신 사용해야 하는 플래그/방법 힌트.
+        hint: String,
+    },
+
+    /// `confirm_severe`에서 확인 문구가 일치하지 않음.
+    ConfirmationFailed {
+        /// 요구된 확인 문구.
+        expected: String,
+    },
 }
 
 impl WrCliError {
@@ -99,6 +111,8 @@ impl WrCliError {
                 | WrCliError::MutuallyExclusiveFlags { .. }
                 | WrCliError::RequiredFlagsTogether { .. }
                 | WrCliError::OneFlagRequired { .. }
+                | WrCliError::InteractiveInputRequired { .. }
+                | WrCliError::ConfirmationFailed { .. }
         )
     }
 
@@ -156,7 +170,7 @@ impl fmt::Display for WrCliError {
             } => {
                 write!(
                     f,
-                    "invalid value '{}' for flag '--{}': expected {}",
+                    "invalid value '{}' for flag '--{}': expected {}  Run with --help for usage.",
                     got, flag, expected
                 )
             }
@@ -242,6 +256,16 @@ impl fmt::Display for WrCliError {
             }
             WrCliError::OneFlagRequired { group } => {
                 write!(f, "one of {} is required", format_flag_list(group))
+            }
+            WrCliError::InteractiveInputRequired { hint } => {
+                write!(
+                    f,
+                    "input required, but stdin is not an interactive terminal (or --no-input was passed); instead pass {}",
+                    hint
+                )
+            }
+            WrCliError::ConfirmationFailed { expected } => {
+                write!(f, "confirmation failed: expected \"{}\"", expected)
             }
         }
     }

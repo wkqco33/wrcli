@@ -5,6 +5,56 @@
 
 ## [Unreleased]
 
+clig.dev(Command Line Interface Guidelines) 대응 기능을 추가했습니다.
+
+### Added
+
+- **내장 `help` 서브커맨드**: `app help`, `app help sub`, `app help sub subsub`.
+  사용자가 `help`를 직접 등록하면 비활성화된다. `help`/`--help`/`--version`이 completion
+  후보에 포함된다.
+- **help 예제·지원·문서 링크**: `Command::example`, `Command::support_url`,
+  `Command::docs_url`(`{command}` 치환 및 하위 상속). 예제 섹션은 Usage 바로 다음에
+  출력된다.
+- **러너 없는 커맨드 정책**: 서브커맨드만 가진 상위 커맨드를 인자 없이 실행하면
+  도움말을 출력하고 종료 코드 0으로 끝난다. `Command::help_on_missing_runner()`로
+  리프에서도 같은 동작을 opt-in 할 수 있다.
+- **`Command::bug_report_url`**: `execute_or_exit()`이 예상 밖 오류에서 리포트 URL을
+  안내한다.
+- **표준 플래그** `Command::standard_flags()`: `-q/--quiet`, `-f/--force`,
+  `--no-input`, `--no-color`, `--plain`, `--json`, `--color <when>`, `--confirm <name>`.
+  persistent로 등록되어 서브커맨드에 전파되며 `--plain`과 `--json`은 상호 배타다.
+- **출력 포맷**: `OutputFormat`(Human/Plain/Json)과 `CommandContext::output_format`,
+  `is_quiet`, `is_force`, `no_input`, `is_plain`, `is_json`, `Table::render_plain()`.
+- **대화형 입력**: `CommandContext::confirm`, `confirm_severe`, `prompt_password`,
+  `is_interactive`. TTY가 아니거나 `--no-input`이면 `InteractiveInputRequired`를 반환한다.
+  `confirm_severe` 불일치는 `ConfirmationFailed`.
+- **민감 플래그** `Flag::sensitive()`: 도움말 기본값과 오류 메시지에서 값을 `***`로 가린다.
+- **선택적 값 플래그** `Flag::optional_value()`: 특수 단어 `none`을 값 없음(빈 문자열)으로
+  해석한다.
+- **`wrcli::io`**: `open_reader`, `open_writer`, `read_to_string` — `-`를 stdin/stdout으로
+  처리한다.
+- **색상 정책**: `ColorChoice`, `set_color_choice`/`color_choice`/`reset_color_choice`,
+  `set_no_color_env`, `ColorEnv`/`should_use_color`, `stdout_is_terminal`,
+  `stdin_is_terminal`. `FORCE_COLOR`, `TERM=dumb`, 앱 전용 `*_NO_COLOR`,
+  `--no-color`/`--color=<when>`을 지원한다.
+- **페이저** `style::pager::page`: stdout이 TTY일 때만 `PAGER`(기본 `less -FIRX`)로 보낸다.
+- **`Progress::draw()` / `Progress::finish()`**: 비TTY에서는 애니메이션 없이 한 줄만 출력.
+- **`signal` 피처**: `Command::interrupt_message`와 `wrcli::signal` — Ctrl-C 시 메시지를
+  출력하고 종료 코드 130으로 즉시 종료한다.
+
+### Changed
+
+- `style::print_warning`/`print_info`가 stdout 대신 **stderr**로 출력된다
+  (clig.dev: messaging to stderr).
+- `WrCliError::InvalidFlagValue` 메시지에 `Run with --help for usage.` 힌트를 추가했다.
+- `NO_COLOR`은 **비어 있지 않을 때만** 색상을 끈다(스펙 준수). `TERM=dumb` 추가.
+- 러너 없는 리프 커맨드는 도움말을 stdout에 출력하지 않고 오류만 낸다(서브커맨드를
+  가진 상위 커맨드는 help + 성공).
+
+### Fixed
+
+- `myapp help <unknown>`이 제안(`Did you mean`)이 포함된 `UnknownSubcommand`를 낸다.
+
 ## [0.3.0] - 2026-09-12
 
 ### Added

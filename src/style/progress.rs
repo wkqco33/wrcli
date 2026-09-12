@@ -1,4 +1,5 @@
-use super::{Color, Style};
+use super::{Color, Style, stdout_is_styled, stdout_is_terminal};
+use std::io::Write;
 
 /// 터미널 진행률 표시줄.
 ///
@@ -94,6 +95,28 @@ impl Progress {
             format!("{} {:>3}%", bar, pct)
         } else {
             format!("{} {} {:>3}%", self.label, bar, pct)
+        }
+    }
+
+    /// 진행률을 그린다.
+    ///
+    /// TTY면 현재 줄을 덮어쓰고(`\r`), 파이프·CI 로그에서는 아무것도 출력하지 않는다
+    /// (clig.dev: 비TTY에서는 애니메이션 금지).
+    pub fn draw(&self) {
+        if stdout_is_terminal() {
+            print!("\r{}", self.render(stdout_is_styled()));
+            let _ = std::io::stdout().flush();
+        }
+    }
+
+    /// 진행률을 마무리한다.
+    ///
+    /// TTY면 현재 줄을 완성하고, 비TTY면 최종 상태를 한 줄로 출력한다.
+    pub fn finish(&self) {
+        if stdout_is_terminal() {
+            println!("\r{}", self.render(stdout_is_styled()));
+        } else {
+            println!("{}", self.render(false));
         }
     }
 }

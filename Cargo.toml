@@ -21,9 +21,11 @@ ini-config  = []
 dotenv-config = []
 properties-config = []
 serde = ["dep:serde"]
+signal = ["dep:libc"]
 
 [dependencies]
 indexmap    = "2.14"
+libc        = { version = "0.2", optional = true }
 log         = "0.4"
 shellexpand = "3"
 
@@ -36,4 +38,5 @@ serde      = { version = "1", optional = true, default-features = false, feature
 [dev-dependencies]
 assert_cmd = "2.2"
 env_logger = "0.11"
+libc = "0.2"
 predicates = "3"
