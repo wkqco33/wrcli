@@ -1,7 +1,7 @@
-//! 민감(sensitive) 플래그가 값을 노출하지 않는지 검증한다.
+//! Verifies that sensitive flags do not expose their values.
 //!
-//! clig.dev: "Do not read secrets directly from flags." 최소한 에러 메시지와
-//! 도움말 기본값에서 값이 새지 않도록 한다.
+//! clig.dev: "Do not read secrets directly from flags." At the very least, keep the value from leaking
+//! into error messages and help defaults.
 
 mod common;
 

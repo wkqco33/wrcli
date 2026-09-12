@@ -1,4 +1,4 @@
-//! clig.dev `-`(stdin/stdout) 관례 헬퍼 테스트.
+//! Tests for the clig.dev `-` (stdin/stdout) convention helpers.
 
 mod common;
 

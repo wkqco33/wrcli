@@ -12,19 +12,19 @@ use super::value::ConfigValue;
 use super::writer::serialize;
 use crate::error::{Result, WrCliError};
 
-/// Go의 Viper에서 영감을 받은 설정 저장소.
+/// Config store inspired by Go's Viper.
 ///
-/// 네 가지 소스를 오름차순 우선순위로 읽음:
-/// 1. 프로그래밍 기본값 ([`Config::set_default`])
-/// 2. 설정 파일 ([`Config::read_in_config`])
-/// 3. 환경 변수 ([`Config::automatic_env`], [`Config::bind_env`])
-/// 4. CLI 플래그 오버라이드 (플래그 파싱 후 자동 주입)
+/// Reads four sources in ascending priority order:
+/// 1. Programmatic defaults ([`Config::set_default`])
+/// 2. Config file ([`Config::read_in_config`])
+/// 3. Environment variables ([`Config::automatic_env`], [`Config::bind_env`])
+/// 4. CLI flag overrides (injected automatically after flag parsing)
 ///
-/// 중첩 접근에 점 표기법 키 지원: `"database.host"`.
+/// Supports dot-notation keys for nested access: `"database.host"`.
 ///
-/// # 지원 포맷
+/// # Supported formats
 ///
-/// | 포맷 | Feature flag    |
+/// | Format | Feature flag    |
 /// |------|-----------------|
 /// | TOML | `toml-config`   |
 /// | JSON | `json-config`   |
@@ -47,15 +47,15 @@ use crate::error::{Result, WrCliError};
 /// ```
 #[derive(Debug, Clone)]
 pub struct Config {
-    // 우선순위 레이어 1 (최저): 프로그래밍 기본값
+    // Priority layer 1 (lowest): programmatic defaults
     defaults: HashMap<String, ConfigValue>,
-    // 우선순위 레이어 2: 설정 파일 값
+    // Priority layer 2: config file values
     file_values: HashMap<String, ConfigValue>,
-    // 우선순위 레이어 3: CLI 플래그 오버라이드
+    // Priority layer 3: CLI flag overrides
     flag_values: HashMap<String, ConfigValue>,
-    // 우선순위 레이어 4 (최고): `set()`으로 지정한 명시 값
+    // Priority layer 4 (highest): explicit values set via `set()`
     explicit_values: HashMap<String, ConfigValue>,
-    // 별칭 → 정규 키
+    // alias -> canonical key
     aliases: HashMap<String, String>,
 
     config_name: Option<String>,
@@ -77,7 +77,7 @@ pub struct Config {
     watch_interval: Duration,
 }
 
-/// 설정 변경 콜백 (감시 스레드와 공유).
+/// Config change callback (shared with the watcher thread).
 #[derive(Clone)]
 struct ChangeCallback(Arc<dyn Fn(&Config) + Send + Sync>);
 
@@ -113,7 +113,7 @@ impl Default for Config {
     }
 }
 
-/// [`Config::resolve`]가 값을 찾은 레이어.
+/// The layer where [`Config::resolve`] found the value.
 enum Layer<'a> {
     Explicit(&'a ConfigValue),
     Flag(&'a ConfigValue),
@@ -127,39 +127,39 @@ impl Config {
         Default::default()
     }
 
-    // ── 파일 설정 ─────────────────────────────────────────────────────────────
+    // ── File settings ─────────────────────────────────────────────────────────
 
-    /// 확장자를 제외한 설정 파일 기본 이름 (예: `"config"`, `"myapp"`).
+    /// Base config file name without extension (e.g. `"config"`, `"myapp"`).
     pub fn set_config_name(mut self, name: &str) -> Self {
         self.config_name = Some(name.to_owned());
         self
     }
 
-    /// 설정 파일 포맷: `"toml"`, `"json"`, `"yaml"` / `"yml"`.
+    /// Config file format: `"toml"`, `"json"`, `"yaml"` / `"yml"`.
     pub fn set_config_type(mut self, t: &str) -> Self {
         self.config_type = Some(t.to_owned());
         self
     }
 
-    /// 설정 파일 검색할 디렉토리 추가. `~` 및 `$VAR` 확장 지원.
+    /// Adds a directory to search for config files. Supports `~` and `$VAR` expansion.
     pub fn add_config_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.config_paths.push(path.into());
         self
     }
 
-    /// 단일 설정 파일 경로를 명시적으로 지정. `~` 및 `$VAR` 확장 지원.
+    /// Explicitly sets a single config file path. Supports `~` and `$VAR` expansion.
     ///
-    /// 설정 이름/타입/검색 경로와 무관하게 이 경로에서 바로 로드한다.
-    /// 확장자(`.toml`/`.json`/`.yaml`/`.yml`)에서 포맷을 자동 판별한다.
+    /// Loads directly from this path regardless of config name/type/search paths.
+    /// The format is inferred automatically from the extension (`.toml`/`.json`/`.yaml`/`.yml`).
     pub fn set_config_file(mut self, path: impl Into<PathBuf>) -> Self {
         self.config_file = Some(path.into());
         self
     }
 
-    /// 첫 번째로 일치하는 경로에서 설정 파일 로드.
+    /// Loads the config file from the first matching path.
     ///
-    /// 파일을 찾지 못하면 [`WrCliError::ConfigFileNotFound`] 반환.
-    /// 파일 없을 때 무시하려면 `.read_in_config().ok()` 사용.
+    /// Returns [`WrCliError::ConfigFileNotFound`] if no file is found.
+    /// Use `.read_in_config().ok()` to ignore a missing file.
     pub fn read_in_config(&mut self) -> Result<()> {
         if let Some(file) = self.config_file.clone() {
             return self.read_explicit_file(file);
@@ -172,7 +172,7 @@ impl Config {
                 paths: vec![],
             })?;
 
-        // 포맷이 지정되지 않았으면 모든 지원 확장자 후보를 순서대로 시도한다.
+        // If no format was specified, try every supported extension candidate in order.
         let extensions: Vec<String> = match self.config_type.as_deref() {
             Some(t) => vec![t.to_owned()],
             None => supported_extensions(),
@@ -184,9 +184,9 @@ impl Config {
             for path in &paths {
                 let expanded = expand_path(path);
                 let full = expanded.join(&filename);
-                log::debug!("설정 파일 검색 중: {}", full.display());
+                log::debug!("searching for config file: {}", full.display());
                 if full.exists() {
-                    log::debug!("설정 파일 발견: {}", full.display());
+                    log::debug!("found config file: {}", full.display());
                     let content = std::fs::read_to_string(&full)?;
                     self.file_values =
                         parse_config_content(&content, ext, &full.display().to_string())?;
@@ -215,10 +215,10 @@ impl Config {
         Ok(())
     }
 
-    /// 사용자가 추가한 검색 경로에 더해 표준 위치를 덧붙인 목록.
+    /// List of user-added search paths plus the standard locations appended.
     ///
-    /// Viper 스타일: 사용자 경로 → `$XDG_CONFIG_HOME/<name>` 또는 `~/.config/<name>`
-    /// → `~/.<name>` → 현재 디렉토리.
+    /// Viper style: user paths -> `$XDG_CONFIG_HOME/<name>` or `~/.config/<name>`
+    /// -> `~/.<name>` -> current directory.
     fn search_paths(&self) -> Vec<PathBuf> {
         let mut paths = self.config_paths.clone();
         let home = std::env::var_os("HOME")
@@ -237,23 +237,23 @@ impl Config {
         paths
     }
 
-    // ── 기본값 ───────────────────────────────────────────────────────────────
+    // ── Defaults ─────────────────────────────────────────────────────────────
 
-    /// 프로그래밍 기본값 설정 (최저 우선순위).
+    /// Sets a programmatic default (lowest priority).
     pub fn set_default(mut self, key: &str, val: impl Into<ConfigValue>) -> Self {
         let key = self.canonical_key(key);
         self.defaults.insert(key, val.into());
         self
     }
 
-    /// 명시 값을 설정 (최고 우선순위, Viper의 `Set`).
+    /// Sets an explicit value (highest priority, Viper's `Set`).
     pub fn set(mut self, key: &str, val: impl Into<ConfigValue>) -> Self {
         let key = self.canonical_key(key);
         self.explicit_values.insert(key, val.into());
         self
     }
 
-    /// `alias`로 조회할 때 `key`의 값을 반환하도록 등록 (Viper의 `RegisterAlias`).
+    /// Registers `key`'s value to be returned when looked up via `alias` (Viper's `RegisterAlias`).
     pub fn register_alias(mut self, alias: &str, key: &str) -> Self {
         let alias = self.canonical_key(alias);
         let key = self.canonical_key(key);
@@ -261,15 +261,15 @@ impl Config {
         self
     }
 
-    /// 중첩 키 구분자 변경 (기본 `'.'`, Viper의 `SetKeyDelimiter`).
+    /// Changes the nested key delimiter (default `'.'`, Viper's `SetKeyDelimiter`).
     pub fn set_key_delimiter(mut self, delim: char) -> Self {
         self.key_delim = delim;
         self
     }
 
-    /// 환경변수명 생성 시 적용할 치환 쌍 설정 (Viper의 `SetEnvKeyReplacer`).
+    /// Sets the replacement pairs applied when generating env variable names (Viper's `SetEnvKeyReplacer`).
     ///
-    /// 대문자로 변환된 키에 순서대로 적용된다. 기본은 `.`/`-` → `_`.
+    /// Applied in order to the uppercased key. Defaults to `.`/`-` -> `_`.
     pub fn set_env_key_replacer(mut self, pairs: &[(&str, &str)]) -> Self {
         self.env_key_replacer = Some(
             pairs
@@ -280,51 +280,51 @@ impl Config {
         self
     }
 
-    /// 빈 환경변수를 값으로 취급할지 설정 (Viper의 `AllowEmptyEnv`).
+    /// Sets whether empty env variables count as values (Viper's `AllowEmptyEnv`).
     ///
-    /// 기본값은 `true`(빈 값도 사용). Viper 기본 동작(빈 값=미설정)은 `false`.
+    /// Defaults to `true` (empty values are used). Viper's default behavior (empty = unset) is `false`.
     pub fn allow_empty_env(mut self, allow: bool) -> Self {
         self.allow_empty_env = allow;
         self
     }
 
-    // ── 환경 변수 ─────────────────────────────────────────────────────────────
+    // ── Environment variables ────────────────────────────────────────────────
 
-    /// 조회되는 모든 키에 대해 환경 변수를 자동으로 검색.
+    /// Automatically looks up an env variable for every key queried.
     ///
-    /// 환경 변수명은 키에서 파생: 대문자 + `.` → `_`.
-    /// 접두사 설정 시: `PREFIX_KEY_SUBKEY`.
+    /// The env variable name is derived from the key: uppercase + `.` -> `_`.
+    /// With a prefix set: `PREFIX_KEY_SUBKEY`.
     pub fn automatic_env(mut self) -> Self {
         self.auto_env = true;
         self
     }
 
-    /// 자동 환경 변수 조회에 접두사 추가 (예: `"MYAPP"`).
+    /// Adds a prefix to automatic env variable lookup (e.g. `"MYAPP"`).
     pub fn set_env_prefix(mut self, prefix: &str) -> Self {
         self.env_prefix_upper = Some(prefix.to_uppercase());
         self.env_prefix = Some(prefix.to_owned());
         self
     }
 
-    /// 설정 키를 특정 환경 변수에 명시적으로 바인딩.
+    /// Explicitly binds a config key to a specific env variable.
     pub fn bind_env(mut self, key: &str, env_var: &str) -> Self {
         let key = self.canonical_key(key);
         self.explicit_env_bindings.insert(key, env_var.to_owned());
         self
     }
 
-    // ── 내부: 플래그 바인딩 ───────────────────────────────────────────────────
+    // ── Internal: flag binding ────────────────────────────────────────────────
 
-    /// CLI 플래그 값을 최고 우선순위 레이어로 주입.
+    /// Injects a CLI flag value into the highest-priority layer.
     ///
-    /// 명령 실행 엔진이 사용자가 실제 입력한 플래그에 대해 자동 호출.
+    /// Called automatically by the command execution engine for flags the user actually passed.
     pub(crate) fn bind_flag_value(&mut self, key: &str, val: ConfigValue) {
         self.flag_values.insert(key.to_owned(), val);
     }
 
     // ── Getter ───────────────────────────────────────────────────────────────
 
-    /// 별칭과 커스텀 구분자를 반영한 내부(점 표기) 키.
+    /// Internal (dot-notation) key reflecting aliases and the custom delimiter.
     fn canonical_key(&self, key: &str) -> String {
         let mut key = if self.key_delim == '.' {
             key.to_owned()
@@ -343,7 +343,7 @@ impl Config {
         key
     }
 
-    /// 우선순위 레이어에서 `key`를 찾아 반환. 환경변수만 동적 조회라 소유 문자열을 담는다.
+    /// Finds `key` in the priority layers and returns it. Only env is looked up dynamically, so it holds an owned string.
     fn resolve(&self, key: &str) -> Option<Layer<'_>> {
         let key = self.canonical_key(key);
         if let Some(v) = self.explicit_values.get(&key) {
@@ -361,14 +361,14 @@ impl Config {
         self.defaults.get(&key).map(Layer::Default)
     }
 
-    /// 어떤 레이어에서든 값이 있으면 `true` (기본값 포함, Viper와 동일).
+    /// `true` if any layer has a value (including defaults, same as Viper).
     pub fn is_set(&self, key: &str) -> bool {
         self.resolve(key).is_some()
     }
 
-    /// 원시 [`ConfigValue`] 조회. 우선순위: Set > CLI 플래그 > 환경변수 > 설정파일 > 기본값.
+    /// Raw [`ConfigValue`] lookup. Priority: Set > CLI flags > environment > config file > defaults.
     ///
-    /// 환경변수는 항상 문자열이므로 [`ConfigValue::String`]으로 감싸 반환됨.
+    /// Environment variables are always strings, so they are returned wrapped in [`ConfigValue::String`].
     pub fn get(&self, key: &str) -> Option<ConfigValue> {
         match self.resolve(key)? {
             Layer::Env(v) => Some(ConfigValue::String(v)),
@@ -378,8 +378,8 @@ impl Config {
         }
     }
 
-    /// 저장된 레이어(Set/플래그/파일/기본값)의 [`ConfigValue`] 참조 조회.
-    /// 환경변수 레이어는 동적 조회이므로 포함되지 않음.
+    /// Looks up the [`ConfigValue`] reference from the stored layers (Set/flags/file/defaults).
+    /// The environment layer is a dynamic lookup, so it is not included.
     pub fn get_ref(&self, key: &str) -> Option<&ConfigValue> {
         let key = self.canonical_key(key);
         self.explicit_values
@@ -389,7 +389,7 @@ impl Config {
             .or_else(|| self.defaults.get(&key))
     }
 
-    /// `String` 으로 값 조회 (숫자/bool 값도 문자열로 강제 변환).
+    /// Looks up the value as `String` (number/bool values are coerced to strings).
     pub fn get_string(&self, key: &str) -> Option<String> {
         match self.resolve(key)? {
             Layer::Env(v) => Some(v),
@@ -399,7 +399,7 @@ impl Config {
         }
     }
 
-    /// `i64` 로 값 조회 (필요 시 문자열 파싱).
+    /// Looks up the value as `i64` (parses a string if needed).
     pub fn get_int(&self, key: &str) -> Option<i64> {
         match self.resolve(key)? {
             Layer::Env(v) => v.parse().ok(),
@@ -409,12 +409,12 @@ impl Config {
         }
     }
 
-    /// `i64` 로 값 조회. [`Config::get_int`]와 동일 (Viper 명칭 호환).
+    /// Looks up the value as `i64`. Same as [`Config::get_int`] (Viper naming compatibility).
     pub fn get_int64(&self, key: &str) -> Option<i64> {
         self.get_int(key)
     }
 
-    /// `u64` 로 값 조회 (음수는 `None`).
+    /// Looks up the value as `u64` (negative values are `None`).
     pub fn get_uint(&self, key: &str) -> Option<u64> {
         match self.resolve(key)? {
             Layer::Env(v) => v.parse().ok(),
@@ -424,7 +424,7 @@ impl Config {
         }
     }
 
-    /// `bool` 로 값 조회 (`true/false/1/0/yes/no` 허용).
+    /// Looks up the value as `bool` (`true/false/1/0/yes/no` accepted).
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         match self.resolve(key)? {
             Layer::Env(v) => match v.as_str() {
@@ -438,7 +438,7 @@ impl Config {
         }
     }
 
-    /// `f64` 로 값 조회 (필요 시 문자열 파싱).
+    /// Looks up the value as `f64` (parses a string if needed).
     pub fn get_float(&self, key: &str) -> Option<f64> {
         match self.resolve(key)? {
             Layer::Env(v) => v.parse().ok(),
@@ -448,7 +448,7 @@ impl Config {
         }
     }
 
-    /// `Vec<String>` 으로 값 조회. 환경변수는 쉼표(`,`)로 구분하여 배열로 파싱.
+    /// Looks up the value as `Vec<String>`. Environment variables are split on commas (`,`) into an array.
     pub fn get_string_vec(&self, key: &str) -> Option<Vec<String>> {
         match self.resolve(key)? {
             Layer::Env(v) => Some(
@@ -463,14 +463,14 @@ impl Config {
         }
     }
 
-    /// `Vec<String>` 으로 값 조회. [`Config::get_string_vec`]와 동일 (Viper 명칭 호환).
+    /// Looks up the value as `Vec<String>`. Same as [`Config::get_string_vec`] (Viper naming compatibility).
     pub fn get_string_slice(&self, key: &str) -> Option<Vec<String>> {
         self.get_string_vec(key)
     }
 
-    /// [`std::time::Duration`] 으로 값 조회.
+    /// Looks up the value as [`std::time::Duration`].
     ///
-    /// 문자열은 Go 스타일(`"1h30m"`, `"250ms"`)로, 숫자는 초로 해석한다.
+    /// Strings are parsed Go-style (`"1h30m"`, `"250ms"`); numbers are interpreted as seconds.
     pub fn get_duration(&self, key: &str) -> Option<Duration> {
         match self.resolve(key)? {
             Layer::Env(v) => ConfigValue::String(v).to_duration_coerce(),
@@ -480,9 +480,9 @@ impl Config {
         }
     }
 
-    /// [`std::time::SystemTime`] 으로 값 조회.
+    /// Looks up the value as [`std::time::SystemTime`].
     ///
-    /// 숫자는 Unix epoch 초, 문자열은 RFC3339 또는 Unix 초로 해석한다.
+    /// Numbers are interpreted as Unix epoch seconds; strings as RFC3339 or Unix seconds.
     pub fn get_time(&self, key: &str) -> Option<SystemTime> {
         match self.resolve(key)? {
             Layer::Env(v) => ConfigValue::String(v).to_time_coerce(),
@@ -492,7 +492,7 @@ impl Config {
         }
     }
 
-    /// 바이트 수(`u64`)로 값 조회. `"1KB"`, `"1.5MB"`, `"2GiB"` 등 1024 기반 단위 지원.
+    /// Looks up the value as a byte count (`u64`). Supports 1024-based units such as `"1KB"`, `"1.5MB"`, `"2GiB"`.
     pub fn get_size_in_bytes(&self, key: &str) -> Option<u64> {
         match self.resolve(key)? {
             Layer::Env(v) => ConfigValue::String(v).to_size_in_bytes_coerce(),
@@ -502,9 +502,9 @@ impl Config {
         }
     }
 
-    // ── 열거 & 하위 트리 ───────────────────────────────────────────────────────
+    // ── Enumeration & subtrees ────────────────────────────────────────────────
 
-    /// 모든 레이어의 키를 정렬해서 반환 (Viper의 `AllKeys`).
+    /// Returns the keys from all layers, sorted (Viper's `AllKeys`).
     pub fn all_keys(&self) -> Vec<String> {
         let mut keys: BTreeSet<String> = BTreeSet::new();
         keys.extend(self.defaults.keys().cloned());
@@ -515,9 +515,9 @@ impl Config {
         keys.into_iter().collect()
     }
 
-    /// 모든 레이어를 병합한 중첩 설정 트리 (Viper의 `AllSettings`).
+    /// Nested settings tree merging all layers (Viper's `AllSettings`).
     ///
-    /// 자동 env 레이어는 키를 열거할 수 없으므로 포함되지 않는다.
+    /// The automatic env layer is not included because its keys cannot be enumerated.
     pub fn all_settings(&self) -> SettingsMap {
         build_settings(
             self.all_keys()
@@ -526,7 +526,7 @@ impl Config {
         )
     }
 
-    /// `key` 바로 아래(하위 트리)의 상대 키 → 값 목록.
+    /// Relative key -> value list directly under `key` (subtree).
     fn subtree(&self, key: &str) -> Vec<(String, ConfigValue)> {
         let prefix = format!("{}.", self.canonical_key(key));
         self.all_keys()
@@ -538,13 +538,13 @@ impl Config {
             .collect()
     }
 
-    /// `key` 하위 값을 중첩 트리로 반환 (Viper의 `GetStringMap`).
+    /// Returns the values under `key` as a nested tree (Viper's `GetStringMap`).
     pub fn get_string_map(&self, key: &str) -> Option<SettingsMap> {
         let entries = self.subtree(key);
         (!entries.is_empty()).then(|| build_settings(entries))
     }
 
-    /// `key` 하위 값을 `String` 맵으로 반환 (Viper의 `GetStringMapString`).
+    /// Returns the values under `key` as a `String` map (Viper's `GetStringMapString`).
     pub fn get_string_map_string(&self, key: &str) -> Option<BTreeMap<String, String>> {
         let entries = self.subtree(key);
         if entries.is_empty() {
@@ -558,7 +558,7 @@ impl Config {
         )
     }
 
-    /// `key` 하위 배열 값을 `Vec<String>` 맵으로 반환 (Viper의 `GetStringMapStringSlice`).
+    /// Returns the array values under `key` as a `Vec<String>` map (Viper's `GetStringMapStringSlice`).
     pub fn get_string_map_string_slice(&self, key: &str) -> Option<BTreeMap<String, Vec<String>>> {
         let entries = self.subtree(key);
         if entries.is_empty() {
@@ -575,10 +575,10 @@ impl Config {
         )
     }
 
-    /// `key` 하위 트리만 담은 새 `Config` 반환 (Viper의 `Sub`).
+    /// Returns a new `Config` containing only the subtree under `key` (Viper's `Sub`).
     ///
-    /// 저장된 레이어와 env 설정을 복사한다. 자동 env 조회는 상대 키 기준이므로
-    /// 원본과 env 변수명이 달라질 수 있다.
+    /// Copies the stored layers and env settings. Automatic env lookup is relative to the key,
+    /// so the env variable names may differ from the original.
     pub fn sub(&self, key: &str) -> Config {
         let prefix = format!("{}.", self.canonical_key(key));
         let strip = |k: &str| k.strip_prefix(&prefix).map(str::to_owned);
@@ -608,11 +608,11 @@ impl Config {
         }
     }
 
-    // ── 읽기 & 병합 ──────────────────────────────────────────────────────────
+    // ── Reading & merging ─────────────────────────────────────────────────────
 
-    /// 리더에서 읽어 파일 레이어를 교체 (Viper의 `ReadConfig`).
+    /// Reads from a reader and replaces the file layer (Viper's `ReadConfig`).
     ///
-    /// 포맷은 [`Config::set_config_type`]으로 지정해야 한다.
+    /// The format must be set via [`Config::set_config_type`].
     pub fn read_config<R: Read>(&mut self, mut reader: R) -> Result<()> {
         let ext = self
             .config_type
@@ -625,9 +625,9 @@ impl Config {
         Ok(())
     }
 
-    /// 설정 파일을 기존 파일 레이어에 병합 (Viper의 `MergeInConfig`).
+    /// Merges a config file into the existing file layer (Viper's `MergeInConfig`).
     ///
-    /// 이미 존재하는 키는 유지된다.
+    /// Keys that already exist are kept.
     pub fn merge_in_config(&mut self, path: impl AsRef<Path>) -> Result<()> {
         let expanded = expand_path(path.as_ref());
         let ext = expanded
@@ -641,9 +641,9 @@ impl Config {
         Ok(())
     }
 
-    /// 키-값 맵을 기존 파일 레이어에 병합 (Viper의 `MergeConfigMap`).
+    /// Merges a key-value map into the existing file layer (Viper's `MergeConfigMap`).
     ///
-    /// 이미 존재하는 키는 유지된다.
+    /// Keys that already exist are kept.
     pub fn merge_config_map(&mut self, map: impl IntoIterator<Item = (String, ConfigValue)>) {
         let merged: HashMap<String, ConfigValue> = map
             .into_iter()
@@ -658,11 +658,11 @@ impl Config {
         }
     }
 
-    // ── 쓰기 ────────────────────────────────────────────────────────────────
+    // ── Writing ───────────────────────────────────────────────────────────────
 
-    /// 현재 설정을 파일로 저장 (Viper의 `WriteConfigAs`).
+    /// Writes the current config to a file (Viper's `WriteConfigAs`).
     ///
-    /// 확장자로 포맷을 판별하고 중첩 설정을 직렬화한다.
+    /// Determines the format from the extension and serializes the nested settings.
     pub fn write_config_as(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = expand_path(path.as_ref());
         let ext = path
@@ -675,7 +675,7 @@ impl Config {
         Ok(())
     }
 
-    /// 대상 파일이 없을 때만 저장 (Viper의 `SafeWriteConfigAs`).
+    /// Writes only if the target file does not exist (Viper's `SafeWriteConfigAs`).
     pub fn safe_write_config_as(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = expand_path(path.as_ref());
         if path.exists() {
@@ -684,16 +684,16 @@ impl Config {
         self.write_config_as(path)
     }
 
-    // ── 역직렬화 (serde) ───────────────────────────────────────────────────────
+    // ── Deserialization (serde) ───────────────────────────────────────────────
 
-    /// 모든 레이어를 병합한 설정을 `T`로 역직렬화 (Viper의 `Unmarshal`).
+    /// Deserializes the settings merged from all layers into `T` (Viper's `Unmarshal`).
     #[cfg(feature = "serde")]
     pub fn unmarshal<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
         let settings = self.all_settings();
         T::deserialize(super::de::ConfigDeserializer::map(&settings))
     }
 
-    /// `key` 하위 설정을 `T`로 역직렬화 (Viper의 `UnmarshalKey`).
+    /// Deserializes the settings under `key` into `T` (Viper's `UnmarshalKey`).
     #[cfg(feature = "serde")]
     pub fn unmarshal_key<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<T> {
         if let Some(value) = self.get(key) {
@@ -709,9 +709,9 @@ impl Config {
         T::deserialize(super::de::ConfigDeserializer::map(&settings))
     }
 
-    // ── 감시 (WatchConfig) ───────────────────────────────────────────────────
+    // ── Watching (WatchConfig) ────────────────────────────────────────────────
 
-    /// 설정 파일 변경 콜백 등록 (Viper의 `OnConfigChange`).
+    /// Registers a config file change callback (Viper's `OnConfigChange`).
     pub fn on_config_change<F>(mut self, f: F) -> Self
     where
         F: Fn(&Config) + Send + Sync + 'static,
@@ -720,16 +720,16 @@ impl Config {
         self
     }
 
-    /// 변경 감지 폴링 주기 설정 (기본 1초).
+    /// Sets the polling interval for detecting changes (default 1 second).
     pub fn set_watch_interval(mut self, interval: Duration) -> Self {
         self.watch_interval = interval;
         self
     }
 
-    /// 설정 파일 변경을 감시 (Viper의 `WatchConfig`).
+    /// Watches the config file for changes (Viper's `WatchConfig`).
     ///
-    /// [`Config::on_config_change`]와 [`Config::read_in_config`]가 선행되어야 한다.
-    /// 반환된 [`ConfigWatcher`]를 drop하면 감시가 중단된다.
+    /// [`Config::on_config_change`] and [`Config::read_in_config`] must be called first.
+    /// Dropping the returned [`ConfigWatcher`] stops watching.
     pub fn watch_config(&mut self) -> Result<ConfigWatcher> {
         let callback = self
             .on_change
@@ -766,7 +766,7 @@ impl Config {
         })
     }
 
-    // ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
+    // ── Internal helpers ──────────────────────────────────────────────────────
 
     fn env_lookup(&self, key: &str) -> Option<String> {
         if let Some(env_var) = self.explicit_env_bindings.get(key)
@@ -796,14 +796,14 @@ impl Config {
     }
 }
 
-/// [`Config::watch_config`]가 반환하는 감시 핸들. drop 시 감시 스레드가 종료된다.
+/// Watcher handle returned by [`Config::watch_config`]. Dropping it stops the watcher thread.
 pub struct ConfigWatcher {
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
 
 impl ConfigWatcher {
-    /// 감시를 중단하고 스레드 종료를 기다린다.
+    /// Stops watching and waits for the thread to finish.
     pub fn stop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         if let Some(handle) = self.handle.take() {
@@ -822,7 +822,7 @@ fn read_file_snapshot(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
-/// 환경변수 조회. `allow_empty`가 false면 빈 값을 미설정으로 취급.
+/// Env variable lookup. If `allow_empty` is false, an empty value is treated as unset.
 fn read_env(var: &str, allow_empty: bool) -> Option<String> {
     match std::env::var(var) {
         Ok(v) if allow_empty || !v.is_empty() => Some(v),
@@ -830,7 +830,7 @@ fn read_env(var: &str, allow_empty: bool) -> Option<String> {
     }
 }
 
-/// 활성화된 feature에 따라 지원되는 설정 확장자 목록.
+/// List of supported config extensions based on enabled features.
 fn supported_extensions() -> Vec<String> {
     #[allow(unused_mut)]
     let mut exts = Vec::new();
@@ -864,7 +864,7 @@ fn expand_path(path: &Path) -> PathBuf {
     match shellexpand::full(&s) {
         Ok(expanded) => PathBuf::from(expanded.as_ref()),
         Err(e) => {
-            log::warn!("경로 확장 실패 '{}': {}", s, e);
+            log::warn!("failed to expand path '{}': {}", s, e);
             path.to_path_buf()
         }
     }

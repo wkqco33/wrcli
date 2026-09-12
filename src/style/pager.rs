@@ -1,16 +1,16 @@
-//! `PAGER`를 통한 페이지 출력.
+//! Paged output via `PAGER`.
 //!
 //! clig.dev: "Use a pager (e.g. `less`) if you are outputting a lot of text...
 //! Use a pager only if `stdin` or `stdout` is an interactive terminal."
 //!
-//! 비TTY(파이프·CI)에서는 페이저를 띄우지 않고 텍스트를 그대로 출력한다.
+//! On a non-TTY (pipe/CI), it does not launch a pager and prints the text as is.
 
 use crate::error::Result;
 use std::io::Write;
 
-/// stdout이 TTY면 `PAGER`(기본 `less -FIRX`)로, 아니면 그대로 출력한다.
+/// If stdout is a TTY, uses `PAGER` (default `less -FIRX`); otherwise prints as is.
 ///
-/// 페이저 실행에 실패하면 조용히 일반 출력으로 폴백한다.
+/// If launching the pager fails, silently falls back to plain output.
 pub fn page(text: &str) -> Result<()> {
     if !super::stdout_is_terminal() {
         print!("{}", text);
@@ -23,9 +23,9 @@ pub fn page(text: &str) -> Result<()> {
     Ok(())
 }
 
-/// 페이저 프로세스를 띄우고 텍스트를 넘긴다. 성공적으로 끝나면 `true`.
+/// Spawns a pager process and feeds it the text. Returns `true` if it exits successfully.
 ///
-/// `sh -c`로 실행하므로 `PAGER="less -R"`처럼 인자를 포함해도 동작한다.
+/// Runs via `sh -c`, so values containing arguments like `PAGER="less -R"` also work.
 fn run_pager(pager: &str, text: &str) -> bool {
     let spawned = std::process::Command::new("sh")
         .arg("-c")

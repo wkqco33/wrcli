@@ -1,4 +1,4 @@
-//! 플래그 파싱 통합 테스트.
+//! Integration tests for flag parsing.
 
 mod common;
 use common::args;
@@ -320,7 +320,7 @@ fn flag_value_starting_with_dash() {
     assert_eq!(*out.lock().unwrap(), "-foo");
 }
 
-// ── hidden / deprecated / 제약 그룹 ──────────────────────────────────────────
+// ── hidden / deprecated / constraint groups ──────────────────────────────────────────
 
 #[test]
 fn hidden_flag_still_parses() {
@@ -420,7 +420,7 @@ fn one_required_flags_allow_one() {
 
 #[test]
 fn flag_constraints_ignore_config_seeded_values() {
-    // 설정에서 시드된 값은 "사용자가 지정한 것"이 아니므로 제약을 발동시키지 않는다.
+    // Values seeded from config are not "user-specified", so they must not trigger constraints.
     Command::new("app")
         .flag(Flag::new("json", FlagValue::Bool(false), "json"))
         .flag(Flag::new("yaml", FlagValue::Bool(false), "yaml"))
@@ -437,7 +437,7 @@ fn flag_constraints_ignore_config_seeded_values() {
 
 #[test]
 fn parent_local_constraint_does_not_break_subcommand() {
-    // 부모 로컬 플래그에 걸린 one_required 제약은 서브커맨드 실행 시 오탐하면 안 된다.
+    // An one_required constraint on a parent-local flag must not trigger a false positive when running a subcommand.
     Command::new("app")
         .flag(Flag::new("mode", FlagValue::String(String::new()), "mode"))
         .one_required(&["mode"])
@@ -458,7 +458,7 @@ fn persistent_constraint_applies_in_subcommand() {
     assert!(matches!(err, WrCliError::MutuallyExclusiveFlags { .. }));
 }
 
-// ── CSV 슬라이스 플래그 ─────────────────────────────────────────────────────
+// ── CSV slice flags ─────────────────────────────────────────────────────
 
 #[test]
 fn comma_separated_string_vec_splits_values() {

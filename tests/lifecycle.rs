@@ -1,4 +1,4 @@
-//! 라이프사이클 훅 실행 순서 통합 테스트.
+//! Integration tests for lifecycle hook execution order.
 
 mod common;
 use common::args;

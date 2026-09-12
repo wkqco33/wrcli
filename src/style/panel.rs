@@ -1,6 +1,6 @@
 use super::{Color, Style, display_width, stdout_is_styled};
 
-/// Unicode 박스 그리기 문자로 테두리를 표시하는 패널 (선택적 제목 포함).
+/// A panel that draws borders with Unicode box-drawing characters (with an optional title).
 ///
 /// # Example
 ///
@@ -61,16 +61,16 @@ impl Panel {
         self
     }
 
-    /// stdout 이 TTY인지 자동 감지해서 출력.
+    /// Prints, auto-detecting whether stdout is a TTY.
     pub fn print(&self) {
         print!("{}", self.render(stdout_is_styled()));
     }
 
-    /// 패널을 `String`으로 렌더링.
+    /// Renders the panel as a `String`.
     ///
-    /// `styled = true`이면 ANSI 이스케이프 시퀀스 포함.
+    /// When `styled = true`, includes ANSI escape sequences.
     pub fn render(&self, styled: bool) -> String {
-        // 문자 수 기준으로 폭을 계산 (str::len()은 바이트 길이라 비-ASCII에서 정렬이 깨짐).
+        // Compute widths in character count (str::len() is byte length and breaks alignment for non-ASCII).
         let lines: Vec<&str> = self.content.lines().collect();
         let content_width = lines.iter().map(|l| display_width(l)).max().unwrap_or(0);
         let title_min = self
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn non_ascii_lines_stay_aligned() {
-        // display_width 기준으로 모든 줄의 우측 테두리(│)가 정렬되어야 함.
+        // With display_width, the right border (│) of every line must align.
         let out = Panel::new("한글 콘텐츠\nshort").render(false);
         let right_border_col: Vec<usize> = out
             .lines()

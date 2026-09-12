@@ -1,10 +1,10 @@
-//! clig.dev 색상 비활성화 규칙 테스트.
+//! Tests for the clig.dev color-disabling rules.
 //!
-//! - `FORCE_COLOR`(비어 있지 않음)는 TTY 감지를 무시하고 색상을 켠다.
-//! - `NO_COLOR`(비어 있지 않음)는 색상을 끈다.
-//! - `TERM=dumb`은 색상을 끈다.
-//! - 앱 전용 `<APP>_NO_COLOR`는 색상을 끈다.
-//! - `--no-color` / `--color=<when>`은 전역 override로 최우선 적용된다.
+//! - `FORCE_COLOR` (non-empty) ignores TTY detection and turns color on.
+//! - `NO_COLOR` (non-empty) turns color off.
+//! - `TERM=dumb` turns color off.
+//! - The app-specific `<APP>_NO_COLOR` turns color off.
+//! - `--no-color` / `--color=<when>` are global overrides and take the highest precedence.
 
 mod common;
 
@@ -23,7 +23,7 @@ fn force_color_enables_color_without_tty() {
 
 #[test]
 fn color_choice_override_has_highest_precedence() {
-    // 전역 override를 다루므로 env lock으로 다른 env 테스트와 직렬화한다.
+    // Handles a global override, so it serializes with other env tests via the env lock.
     let _env = EnvGuard::set_many(&[("FORCE_COLOR", "1"), ("NO_COLOR", "1"), ("TERM", "dumb")]);
 
     set_color_choice(ColorChoice::Never);
@@ -45,10 +45,10 @@ fn app_no_color_env_is_respected() {
     let _env = EnvGuard::set_many(&[("FORCE_COLOR", ""), ("MYAPP_NO_COLOR", "1")]);
     set_no_color_env(Some("MYAPP_NO_COLOR"));
     set_color_choice(ColorChoice::Always);
-    // Always override는 앱 전용 env보다 우선한다.
+    // The Always override takes precedence over the app-specific env.
     assert!(stdout_is_styled());
     set_color_choice(ColorChoice::Auto);
-    // Auto에서는 앱 전용 env가 색상을 끈다.
+    // In Auto, the app-specific env turns color off.
     assert!(!stdout_is_styled());
     reset_color_choice();
     set_no_color_env(None);

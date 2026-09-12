@@ -101,7 +101,7 @@ fn completion_excludes_hidden_entries() {
     assert!(script.contains("visible"));
 }
 
-// ── 동적 completion API ──────────────────────────────────────────────────────
+// ── Dynamic completion API ──────────────────────────────────────────────────────
 
 #[test]
 fn complete_suggests_subcommands() {

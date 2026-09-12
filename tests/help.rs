@@ -1,4 +1,4 @@
-//! clig.dev Help 규약 테스트: 내장 `help` 서브커맨드와 러너 없는 커맨드 정책.
+//! Tests for the clig.dev Help conventions: the built-in `help` subcommand and the runner-less command policy.
 
 mod common;
 

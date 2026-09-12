@@ -1,4 +1,4 @@
-//! 서브커맨드 라우팅 및 persistent flag 통합 테스트.
+//! Integration tests for subcommand routing and persistent flags.
 
 mod common;
 use common::args;
@@ -108,7 +108,7 @@ fn persistent_flag_visible_in_leaf() {
 
 #[test]
 fn flag_value_matching_subcommand_name_is_not_misrouted() {
-    // 회귀 테스트: --name의 값이 서브커맨드 이름과 같아도 서브커맨드로 오인되면 안 됨.
+    // Regression test: a --name value equal to a subcommand name must not be misrouted to the subcommand.
     let seen = Arc::new(Mutex::new(String::new()));
     let seen2 = seen.clone();
     Command::new("app")
@@ -124,7 +124,7 @@ fn flag_value_matching_subcommand_name_is_not_misrouted() {
 
 #[test]
 fn double_dash_sentinel_prevents_subcommand_routing() {
-    // 회귀 테스트: `--` 이후 토큰은 서브커맨드 이름과 같아도 리터럴 위치 인자로 취급.
+    // Regression test: tokens after `--` are treated as literal positional args even if they match a subcommand name.
     let positional = Arc::new(Mutex::new(Vec::<String>::new()));
     let p2 = positional.clone();
     Command::new("app")
@@ -164,7 +164,7 @@ fn hidden_subcommand_still_dispatches() {
     assert!(*ran.lock().unwrap());
 }
 
-// ── 부모 로컬 플래그 (서브커맨드 앞) ─────────────────────────────────────────
+// ── Parent-local flags (before the subcommand) ─────────────────────────────────────────
 
 #[test]
 fn parent_local_flag_before_subcommand_is_parsed() {
@@ -241,7 +241,7 @@ fn child_flag_overrides_parent_local_flag() {
 
 #[test]
 fn help_flag_after_parent_flag_still_works() {
-    // 메타 플래그가 있으면 부모 플래그를 소비하지 않고 리프가 help를 처리한다.
+    // When a meta flag is present, the parent flags are not consumed and the leaf handles help.
     Command::new("app")
         .flag(Flag::new("name", FlagValue::String(String::new()), "name"))
         .subcommand(Command::new("sub").on_run(|_| {}))
@@ -251,7 +251,7 @@ fn help_flag_after_parent_flag_still_works() {
 
 #[test]
 fn parent_flag_value_does_not_leak_into_sibling_help() {
-    // 부모 로컬 플래그는 하위 help의 Flags 목록에 나타나면 안 된다(정의는 상속되지 않음).
+    // Parent-local flags must not appear in a child's Flags list (definitions are not inherited).
     let leaked = Arc::new(Mutex::new(false));
     let leaked2 = leaked.clone();
     Command::new("app")

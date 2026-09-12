@@ -1,4 +1,4 @@
-//! `-`(stdin/stdout) 관례를 지원하는 입출력 헬퍼.
+//! I/O helpers that support the `-` (stdin/stdout) convention.
 //!
 //! clig.dev: "If input or output is a file, support `-` to read from `stdin`
 //! or write to `stdout`."
@@ -21,7 +21,7 @@
 use crate::error::Result;
 use std::io::{Read, Write};
 
-/// `path`가 `-`이면 stdin, 아니면 해당 파일을 여는 reader를 반환한다.
+/// Returns a reader that reads from stdin if `path` is `-`, otherwise opens the given file.
 pub fn open_reader(path: &str) -> Result<Box<dyn Read>> {
     if path == "-" {
         Ok(Box::new(std::io::stdin()))
@@ -30,7 +30,7 @@ pub fn open_reader(path: &str) -> Result<Box<dyn Read>> {
     }
 }
 
-/// `path`가 `-`이면 stdout, 아니면 해당 파일을 생성/절단하는 writer를 반환한다.
+/// Returns a writer that writes to stdout if `path` is `-`, otherwise creates/truncates the given file.
 pub fn open_writer(path: &str) -> Result<Box<dyn Write>> {
     if path == "-" {
         Ok(Box::new(std::io::stdout()))
@@ -39,7 +39,7 @@ pub fn open_writer(path: &str) -> Result<Box<dyn Write>> {
     }
 }
 
-/// `-`면 stdin에서, 아니면 파일에서 전체 내용을 UTF-8 문자열로 읽는다.
+/// Reads the entire contents as a UTF-8 string from stdin if `path` is `-`, otherwise from the file.
 pub fn read_to_string(path: &str) -> Result<String> {
     let mut buf = String::new();
     open_reader(path)?.read_to_string(&mut buf)?;

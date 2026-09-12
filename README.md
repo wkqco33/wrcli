@@ -1,5 +1,7 @@
 # wrcli
 
+[English](README.md) | [한국어](README.ko.md)
+
 [![CI](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml/badge.svg)](https://github.com/wkqco33/wrcli/actions/workflows/ci.yml)
 
 Releases are published to crates.io automatically when a matching version tag
@@ -9,71 +11,73 @@ is pushed (for example, `v0.4.0`). Configure the repository secret
 [![Documentation](https://docs.rs/wrcli/badge.svg)](https://docs.rs/wrcli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13/viper)에서 영감을 받은 Rust CLI 프레임워크 라이브러리.  
-트리 구조의 서브커맨드, 타입 안전 플래그, 다중 소스 설정을 플루언트 빌더 API로 조합할 수 있습니다.
+A Rust CLI framework inspired by Go's [cobra](https://github.com/spf13/cobra) +
+[viper](https://github.com/spf13/viper).
+Nested subcommands, type-safe flags and multi-source configuration, composed
+through a fluent builder API.
 
 ---
 
-## 특징
+## Features
 
-- 무한 중첩 서브커맨드 + 알리아스
-- 타입 안전 플래그 (`bool`, `string`, `int`, `float`, `string[]`, `int[]`)
-- persistent 플래그 — 루트에 등록하면 모든 서브커맨드에 자동 전파
-- **숨김(`hidden`)** 커맨드·플래그 — help/completion에서 제외, 실행은 유지
-- **Deprecated** 커맨드·플래그 — 사용 시 stderr 경고
-- **플래그 제약 그룹**: `mutually_exclusive`, `required_together`, `one_required`
-- **오타 제안(`Did you mean`)** — 미등록 커맨드/플래그에 편집 거리 기반 후보 제시, `Command::suggest_for`
-- **동적 completion** — `Command::complete` / `completion_request` / `arg_candidates`
-- **CSV 슬라이스 플래그** — `Flag::comma_separated()`로 `--tag a,b,c` 분리
-- **부모 로컬 플래그** — `app --profile prod deploy`처럼 서브커맨드 앞에서도 파싱
-- **usage 힌트** — `Command::usage_args("<name>")`
-- **종료 코드 분류**: `WrCliError::exit_code()` / `is_usage_error()`, `Command::execute_or_exit()`
-- 5계층 설정 우선순위: 기본값 → 파일(TOML/JSON/YAML/INI/dotenv/properties) → 환경변수 → CLI 플래그 → 명시 값(`set`)
-- 설정 파일 **자동 탐지** (`set_config_file`, 형식/경로 자동 판별)
-- **별칭(`register_alias`)**, 커스텀 키 구분자, env key replacer, 빈 env 처리 제어
-- **Config ↔ Flag 자동 바인딩** — 명시되지 않은 플래그를 설정값으로 시드
-- 타입 조회: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_duration`/`get_time`/`get_size_in_bytes`
-- **열거·하위 트리**: `all_keys`, `all_settings`, `get_string_map*`, `sub`
-- **런타임 읽기·병합**: `read_config`, `merge_in_config`, `merge_config_map`
-- **설정 저장**: `write_config_as`, `safe_write_config_as`
-- **구조체 역직렬화**(`serde` 피처): `unmarshal`, `unmarshal_key`
-- **설정 파일 감시**: `on_config_change`, `watch_config`, `ConfigWatcher`
-- **포맷**: TOML·JSON(기본), YAML·INI·dotenv·Java properties(피처)
-- 라이프사이클 훅: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
-- `CommandContext` getter: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_int_vec`/`get_duration`/`get_time`/`get_size_in_bytes`/`get_string_map`/`is_set`
-- **내장 `help` 서브커맨드** — `app help`, `app help sub [subsub]`
-- **help 예제·지원·문서 링크** — `example`, `support_url`, `docs_url`(`{command}` 치환, 하위 상속)
-- **러너 없는 커맨드 정책** — 서브커맨드만 있으면 help + 종료 코드 0, `help_on_missing_runner()`
-- **표준 플래그** — `standard_flags()`: `-q/--quiet`, `-f/--force`, `--no-input`, `--no-color`, `--plain`, `--json`, `--color`, `--confirm`
-- **출력 포맷** — `OutputFormat`(Human/Plain/Json), `Table::render_plain()`
-- **대화형 프롬프트** — `confirm`, `confirm_severe`, `prompt_password` (TTY/`--no-input` 안전)
-- **민감 플래그** — `Flag::sensitive()` 값 마스킹
-- **선택적 값** — `Flag::optional_value()` (`none` = 값 없음)
-- **`-` 입출력** — `wrcli::io::{open_reader, open_writer, read_to_string}`
-- **색상 정책** — `FORCE_COLOR`/`NO_COLOR`/`TERM=dumb`/`*_NO_COLOR`/`--no-color`, `ColorChoice`
-- **페이저** — `style::pager::page` (`PAGER`, 기본 `less -FIRX`)
-- **SIGINT** — `signal` 피처, `interrupt_message` (종료 코드 130)
-- **버그 리포트 URL** — `bug_report_url`
-- **Completion 스크립트 생성** (bash / zsh / fish)
-- 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`
-- `execute_with()` — 실제 argv 없이 인수를 직접 주입해 단위 테스트 가능
-- `--help` / `--version` 자동 생성
+- Infinitely nested subcommands with aliases
+- Type-safe flags (`bool`, `string`, `int`, `float`, `string[]`, `int[]`)
+- Persistent flags — register once on the root and they propagate to every subcommand
+- **Hidden** commands and flags — excluded from help/completion, still executable
+- **Deprecated** commands and flags — warn on stderr when used
+- **Flag constraint groups**: `mutually_exclusive`, `required_together`, `one_required`
+- **Typo suggestions** (`Did you mean`) based on edit distance, plus `Command::suggest_for`
+- **Dynamic completion** — `Command::complete`, `completion_request`, `arg_candidates`
+- **CSV slice flags** — `Flag::comma_separated()` splits `--tag a,b,c`
+- **Parent-local flags** — parsed even before the subcommand (`app --profile prod deploy`)
+- **Usage hints** — `Command::usage_args("<name>")`
+- **Exit-code classification** — `WrCliError::exit_code()`, `is_usage_error()`, `Command::execute_or_exit()`
+- 5-layer configuration precedence: defaults → file (TOML/JSON/YAML/INI/dotenv/properties) → env vars → CLI flags → explicit `set`
+- **Automatic config discovery** (`set_config_file`, format/path inference)
+- **Key aliases** (`register_alias`), custom key delimiter, env key replacer, empty-env handling
+- **Config ↔ flag binding** — unset flags are seeded from configuration values
+- Typed getters: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_duration`/`get_time`/`get_size_in_bytes`
+- **Enumeration & subtrees**: `all_keys`, `all_settings`, `get_string_map*`, `sub`
+- **Runtime read/merge**: `read_config`, `merge_in_config`, `merge_config_map`
+- **Config writing**: `write_config_as`, `safe_write_config_as`
+- **Struct deserialization** (`serde` feature): `unmarshal`, `unmarshal_key`
+- **Config file watching**: `on_config_change`, `watch_config`, `ConfigWatcher`
+- **Formats**: TOML and JSON (default), YAML/INI/dotenv/Java properties (features)
+- Lifecycle hooks: `persistent_pre_run` → `pre_run` → `run` → `post_run` → `persistent_post_run`
+- `CommandContext` getters: `get_string`/`get_int`/`get_uint`/`get_bool`/`get_float`/`get_string_vec`/`get_int_vec`/`get_duration`/`get_time`/`get_size_in_bytes`/`get_string_map`/`is_set`
+- **Built-in `help` subcommand** — `app help`, `app help sub [subsub]`
+- **Help examples, support and docs links** — `example`, `support_url`, `docs_url` (with `{command}` substitution and inheritance)
+- **Missing-runner policy** — a parent with subcommands prints help and exits 0; opt in with `help_on_missing_runner()`
+- **Standard flags** — `standard_flags()`: `-q/--quiet`, `-f/--force`, `--no-input`, `--no-color`, `--plain`, `--json`, `--color`, `--confirm`
+- **Output formats** — `OutputFormat` (Human/Plain/Json), `Table::render_plain()`
+- **Interactive prompts** — `confirm`, `confirm_severe`, `prompt_password` (TTY and `--no-input` safe)
+- **Sensitive flags** — `Flag::sensitive()` masks values
+- **Optional values** — `Flag::optional_value()` (`none` means "no value")
+- **`-` stdin/stdout** — `wrcli::io::{open_reader, open_writer, read_to_string}`
+- **Color policy** — `FORCE_COLOR`/`NO_COLOR`/`TERM=dumb`/`*_NO_COLOR`/`--no-color`, `ColorChoice`
+- **Pager** — `style::pager::page` (`PAGER`, defaults to `less -FIRX`)
+- **SIGINT** — `signal` feature, `interrupt_message` (exit code 130)
+- **Bug report URL** — `bug_report_url`
+- **Completion script generation** (bash / zsh / fish)
+- Rich terminal styling: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`
+- `execute_with()` — inject arguments directly for unit tests without real argv
+- Automatic `--help` / `--version`
 
 ---
 
-## 설치
+## Installation
 
 ```toml
 [dependencies]
 wrcli = "0.4"
 
-# YAML 설정 파일도 필요한 경우
+# If you also need YAML config files
 wrcli = { version = "0.4", features = ["yaml-config"] }
 ```
 
 ---
 
-## 빠른 시작
+## Quick start
 
 ```rust
 use wrcli::{Command, Flag, FlagValue, Config};
@@ -119,7 +123,7 @@ Usage:
 ...
 ```
 
-예제 전체 실행:
+Run the full examples:
 
 ```sh
 cargo run --example basic -- --help
@@ -128,38 +132,38 @@ cargo run --example styled
 
 ---
 
-## 문서
+## Documentation
 
-상세 레퍼런스는 [docs/GUIDE.md](docs/GUIDE.md)를, 터미널 스타일링은 [docs/STYLE.md](docs/STYLE.md)를 참고하세요.
+See [docs/GUIDE.md](docs/GUIDE.md) for the full reference and
+[docs/STYLE.md](docs/STYLE.md) for terminal styling.
 
-| 항목 | 바로가기 |
-| ---- | ------- |
-| 커맨드 & 서브커맨드 | [docs/GUIDE.md#커맨드](docs/GUIDE.md#커맨드) |
-| 플래그 타입 & 파싱 문법 | [docs/GUIDE.md#플래그](docs/GUIDE.md#플래그) |
-| 설정(Config) & 우선순위 | [docs/GUIDE.md#설정config](docs/GUIDE.md#설정config) |
-| 설정 파일 자동 탐지 | [docs/GUIDE.md#설정-파일-자동-탐지](docs/GUIDE.md#설정-파일-자동-탐지) |
-| Config ↔ Flag 바인딩 | [docs/GUIDE.md#config--flag-자동-바인딩](docs/GUIDE.md#config--flag-자동-바인딩) |
-| 명시 값 & 별칭 | [docs/GUIDE.md#명시-값과-별칭](docs/GUIDE.md#명시-값과-별칭) |
-| 키 구분자 & env 설정 | [docs/GUIDE.md#키-구분자와-env-설정](docs/GUIDE.md#키-구분자와-env-설정) |
-| 설정 조회 (typed getter) | [docs/GUIDE.md#설정-조회](docs/GUIDE.md#설정-조회) |
-| 열거 & 맵 조회 | [docs/GUIDE.md#열거와-맵-조회](docs/GUIDE.md#열거와-맵-조회) |
-| 런타임 읽기 & 병합 | [docs/GUIDE.md#런타임-읽기와-병합](docs/GUIDE.md#런타임-읽기와-병합) |
-| 설정 저장 | [docs/GUIDE.md#설정-저장](docs/GUIDE.md#설정-저장) |
-| 구조체 역직렬화 | [docs/GUIDE.md#구조체-역직렬화](docs/GUIDE.md#구조체-역직렬화) |
-| 설정 파일 감시 | [docs/GUIDE.md#설정-파일-감시](docs/GUIDE.md#설정-파일-감시) |
-| Completion 생성 | [docs/GUIDE.md#completion-스크립트-생성](docs/GUIDE.md#completion-스크립트-생성) |
-| 라이프사이클 훅 | [docs/GUIDE.md#라이프사이클-훅](docs/GUIDE.md#라이프사이클-훅) |
-| 숨김 · Deprecated · 제약 | [docs/GUIDE.md#숨김--deprecated--플래그-제약](docs/GUIDE.md#숨김--deprecated--플래그-제약) |
-| 동적 completion | [docs/GUIDE.md#동적-completion](docs/GUIDE.md#동적-completion) |
-| CommandContext | [docs/GUIDE.md#commandcontext](docs/GUIDE.md#commandcontext) |
-| 에러 처리 | [docs/GUIDE.md#에러-처리](docs/GUIDE.md#에러-처리) |
-| 테스트 작성 | [docs/GUIDE.md#테스트-작성](docs/GUIDE.md#테스트-작성) |
-| 피처 플래그 | [docs/GUIDE.md#피처-플래그](docs/GUIDE.md#피처-플래그) |
-| 터미널 스타일링 | [docs/STYLE.md](docs/STYLE.md) |
-| 변경 이력 | [CHANGELOG.md](CHANGELOG.md) |
+| Topic | Link |
+| ----- | ---- |
+| Commands & subcommands | [docs/GUIDE.md#commands](docs/GUIDE.md#commands) |
+| Flag types & parsing syntax | [docs/GUIDE.md#flags](docs/GUIDE.md#flags) |
+| Help conventions (clig.dev) | [docs/GUIDE.md#help-conventions-cligdev](docs/GUIDE.md#help-conventions-cligdev) |
+| Standard flags & output formats | [docs/GUIDE.md#standard-flags-and-output-formats](docs/GUIDE.md#standard-flags-and-output-formats) |
+| Interactive input & confirmations | [docs/GUIDE.md#interactive-input-and-confirmation-prompts](docs/GUIDE.md#interactive-input-and-confirmation-prompts) |
+| Sensitive flags | [docs/GUIDE.md#sensitive-flags](docs/GUIDE.md#sensitive-flags) |
+| Optional-value flags | [docs/GUIDE.md#optional-value-flags](docs/GUIDE.md#optional-value-flags) |
+| `-` stdin/stdout | [docs/GUIDE.md#standard-io-substitution](docs/GUIDE.md#standard-io-substitution) |
+| Color policy & pager | [docs/GUIDE.md#color-policy-and-pager](docs/GUIDE.md#color-policy-and-pager) |
+| Ctrl-C (SIGINT) handling | [docs/GUIDE.md#ctrl-c-sigint-handling](docs/GUIDE.md#ctrl-c-sigint-handling) |
+| Hidden / deprecated / constraints | [docs/GUIDE.md#hidden-deprecated-and-flag-constraints](docs/GUIDE.md#hidden-deprecated-and-flag-constraints) |
+| Configuration & precedence | [docs/GUIDE.md#configuration-config](docs/GUIDE.md#configuration-config) |
+| Config ↔ flag binding | [docs/GUIDE.md#automatic-config-and-flag-binding](docs/GUIDE.md#automatic-config-and-flag-binding) |
+| Completion generation | [docs/GUIDE.md#generating-completion-scripts](docs/GUIDE.md#generating-completion-scripts) |
+| Dynamic completion | [docs/GUIDE.md#dynamic-completion](docs/GUIDE.md#dynamic-completion) |
+| Lifecycle hooks | [docs/GUIDE.md#lifecycle-hooks](docs/GUIDE.md#lifecycle-hooks) |
+| `CommandContext` | [docs/GUIDE.md#commandcontext](docs/GUIDE.md#commandcontext) |
+| Error handling | [docs/GUIDE.md#error-handling](docs/GUIDE.md#error-handling) |
+| Writing tests | [docs/GUIDE.md#writing-tests](docs/GUIDE.md#writing-tests) |
+| Feature flags | [docs/GUIDE.md#feature-flags](docs/GUIDE.md#feature-flags) |
+| Terminal styling | [docs/STYLE.md](docs/STYLE.md) |
+| Changelog | [CHANGELOG.md](CHANGELOG.md) |
 
 ---
 
-## 라이선스
+## License
 
 [MIT](LICENSE)

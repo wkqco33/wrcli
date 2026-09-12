@@ -1,7 +1,7 @@
 use crate::flag::FlagValue;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// 설정 시스템에 저장되는 타입별 값.
+/// A typed value stored in the config system.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigValue {
     Bool(bool),
@@ -102,7 +102,7 @@ impl ConfigValue {
         }
     }
 
-    /// 문자열은 Go 스타일 duration(`"1h30m"`, `"250ms"`), 숫자는 초로 해석.
+    /// Strings are parsed as Go-style durations (`"1h30m"`, `"250ms"`); numbers as seconds.
     pub(crate) fn to_duration_coerce(&self) -> Option<Duration> {
         match self {
             ConfigValue::Int(i) if *i >= 0 => Some(Duration::from_secs(*i as u64)),
@@ -112,7 +112,7 @@ impl ConfigValue {
         }
     }
 
-    /// 숫자는 Unix epoch 초, 문자열은 RFC3339 또는 Unix 초로 해석.
+    /// Numbers are interpreted as Unix epoch seconds, strings as RFC3339 or Unix seconds.
     pub(crate) fn to_time_coerce(&self) -> Option<SystemTime> {
         match self {
             ConfigValue::Int(i) => secs_to_system_time(*i),
@@ -122,7 +122,7 @@ impl ConfigValue {
         }
     }
 
-    /// `"1KB"`, `"1.5MB"`, `"2GiB"` 등 1024 기반 단위를 바이트로 변환.
+    /// Converts 1024-based units such as `"1KB"`, `"1.5MB"`, `"2GiB"` to bytes.
     pub(crate) fn to_size_in_bytes_coerce(&self) -> Option<u64> {
         match self {
             ConfigValue::Int(i) if *i >= 0 => Some(*i as u64),
@@ -133,7 +133,7 @@ impl ConfigValue {
     }
 }
 
-/// Go `time.ParseDuration` 스타일 문자열을 파싱.
+/// Parses a Go `time.ParseDuration`-style string.
 fn parse_duration(s: &str) -> Option<Duration> {
     let s = s.trim();
     if s.is_empty() {
@@ -170,7 +170,7 @@ fn parse_duration(s: &str) -> Option<Duration> {
     Duration::try_from_secs_f64(total).ok()
 }
 
-/// `"10MB"`, `"1.5 GiB"`, `"512"` 등을 바이트로 파싱 (1024 기반).
+/// Parses `"10MB"`, `"1.5 GiB"`, `"512"`, etc. into bytes (1024-based).
 fn parse_size(s: &str) -> Option<u64> {
     let s = s.trim();
     let num_len = s
@@ -224,7 +224,7 @@ fn secs_to_system_time_f(secs: f64) -> Option<SystemTime> {
     }
 }
 
-/// `YYYY-MM-DDThh:mm:ss[.frac][Z|±hh:mm]` 를 UTC로 파싱.
+/// Parses `YYYY-MM-DDThh:mm:ss[.frac][Z|±hh:mm]` as UTC.
 fn parse_rfc3339(s: &str) -> Option<SystemTime> {
     if s.len() < 19 {
         return None;
@@ -288,7 +288,7 @@ fn parse_rfc3339(s: &str) -> Option<SystemTime> {
     base.checked_add(Duration::from_nanos(nanos as u64))
 }
 
-/// Civil date → Unix epoch 기준 일수 (Howard Hinnant 알고리즘).
+/// Civil date to days since the Unix epoch (Howard Hinnant's algorithm).
 fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     let year = if month <= 2 { year - 1 } else { year };
     let era = if year >= 0 { year } else { year - 399 } / 400;
@@ -362,7 +362,7 @@ impl From<Vec<i64>> for ConfigValue {
     }
 }
 
-/// 파싱된 `FlagValue`를 레이어 4 바인딩용 `ConfigValue`로 변환.
+/// Converts a parsed `FlagValue` into a `ConfigValue` for layer 4 binding.
 impl From<&FlagValue> for ConfigValue {
     fn from(fv: &FlagValue) -> Self {
         match fv {

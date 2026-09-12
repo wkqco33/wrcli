@@ -2,38 +2,39 @@
 
 use std::sync::Mutex;
 
-/// 전역 뮤텍스로 env 변수 접근을 직렬화 (테스트 병렬 실행 안전).
+/// Serializes access to env variables with a global mutex (safe for parallel test execution).
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-/// RAII guard: 생성 시 env 변수를 설정하고, Drop 시 원래 값으로 복원.
+/// RAII guard: sets an env variable on creation and restores the original value on Drop.
 pub struct EnvGuard {
     _lock: std::sync::MutexGuard<'static, ()>,
     entries: Vec<(String, Option<std::ffi::OsString>)>,
 }
 
 impl EnvGuard {
-    /// env 변수를 설정하고 Drop 시 자동 복원되는 Guard 반환.
+    /// Returns a Guard that sets an env variable and restores it automatically on Drop.
     ///
     /// # Example
     /// ```ignore
     /// let _g = EnvGuard::set("MYAPP_PORT", "3000");
     /// // ... test code ...
-    /// // _g drop 시 env 변수 자동 제거
+    /// // the env variable is removed automatically when _g drops
     /// ```
     pub fn set(key: &str, val: &str) -> Self {
         Self::set_many(&[(key, val)])
     }
 
-    /// 여러 env 변수를 단일 lock으로 설정하고 Drop 시 자동 복원되는 Guard 반환.
+    /// Returns a Guard that sets multiple env variables under a single lock and restores them
+    /// automatically on Drop.
     ///
-    /// env 변수에 의존하는 테스트는 서로 다른 변수를 설정하더라도 반드시
-    /// 한 Guard에서 함께 설정해야 데드락 없이 병렬 안전하다.
+    /// Tests that depend on env variables must set them together in a single Guard,
+    /// even when they use different variables, to be parallel-safe without deadlocks.
     pub fn set_many(entries: &[(&str, &str)]) -> Self {
         let lock = ENV_LOCK.lock().unwrap();
         let mut restored = Vec::with_capacity(entries.len());
         for (key, val) in entries {
             let prev = std::env::var_os(key);
-            // SAFETY: ENV_LOCK으로 직렬화되어 동시 접근 없음
+            // SAFETY: serialized by ENV_LOCK, so there is no concurrent access
             unsafe {
                 std::env::set_var(key, val);
             }
@@ -48,7 +49,7 @@ impl EnvGuard {
 
 impl Drop for EnvGuard {
     fn drop(&mut self) {
-        // SAFETY: ENV_LOCK으로 직렬화되어 동시 접근 없음
+        // SAFETY: serialized by ENV_LOCK, so there is no concurrent access
         for (key, prev) in &self.entries {
             match prev {
                 Some(v) => unsafe {
@@ -70,7 +71,7 @@ pub fn args(s: &str) -> Vec<String> {
     }
 }
 
-/// 임시 디렉토리 — Drop 시 자동 삭제.
+/// Temporary directory — automatically deleted on Drop.
 pub struct TempDir(std::path::PathBuf);
 
 impl TempDir {

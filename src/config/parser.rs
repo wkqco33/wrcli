@@ -2,13 +2,13 @@ use super::value::ConfigValue;
 use crate::error::{Result, WrCliError};
 use std::collections::HashMap;
 
-/// 설정 파일 내용을 파싱해서 플랫 키-값 맵으로 변환.
+/// Parses config file contents into a flat key-value map.
 pub(super) fn parse_config_content(
     #[allow(unused)] content: &str,
     ext: &str,
     path: &str,
 ) -> Result<HashMap<String, ConfigValue>> {
-    log::debug!("설정 파일 파싱 시작: {} (포맷: {})", path, ext);
+    log::debug!("parsing config file: {} (format: {})", path, ext);
     match ext {
         #[cfg(feature = "toml-config")]
         "toml" => parse_toml(content, path),
@@ -41,7 +41,7 @@ fn child_key(prefix: &str, key: &str) -> String {
     }
 }
 
-/// 양끝의 일치하는 따옴표를 제거.
+/// Removes matching quotes from both ends.
 #[cfg(any(
     feature = "dotenv-config",
     feature = "properties-config",

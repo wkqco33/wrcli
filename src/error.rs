@@ -1,7 +1,7 @@
 use std::fmt;
 
-/// `non_exhaustive`: 향후 variant 추가가 semver-breaking이 되지 않도록 함.
-/// 소비자는 `match`에 반드시 wildcard(`_`) 분기를 포함해야 함.
+/// `non_exhaustive`: prevents future variant additions from being semver-breaking.
+/// Consumers must include a wildcard (`_`) arm in `match`.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum WrCliError {
@@ -9,17 +9,17 @@ pub enum WrCliError {
     UnknownFlag {
         flag: String,
         command: String,
-        /// 편집 거리 기반 근접 후보 (비어 있을 수 있음).
+        /// Edit-distance-based close candidates (may be empty).
         suggestions: Vec<String>,
     },
     UnknownSubcommand {
         name: String,
         parent: String,
-        /// 편집 거리 기반 근접 후보 (비어 있을 수 있음).
+        /// Edit-distance-based close candidates (may be empty).
         suggestions: Vec<String>,
     },
     MissingRequiredFlag(String),
-    /// 플래그는 제공되었지만 값이 누락됨 (예: `--name` without value).
+    /// A flag was provided but its value is missing (e.g. `--name` without value).
     MissingFlagValue(String),
     InvalidFlagValue {
         flag: String,
@@ -49,44 +49,44 @@ pub enum WrCliError {
     // Completion generation errors
     UnsupportedCompletionShell(String),
 
-    /// `read_config` 호출 시 설정 포맷이 지정되지 않음.
+    /// No config format was specified when `read_config` was called.
     ConfigTypeNotSet,
 
-    /// `safe_write_config_as` 대상 파일이 이미 존재함.
+    /// The target file for `safe_write_config_as` already exists.
     ConfigFileExists(String),
 
-    /// `unmarshal` 시 serde 역직렬화 실패.
+    /// serde deserialization failed during `unmarshal`.
     ConfigDeserializeError(String),
 
-    /// `watch_config` 선행 조건(콜백/로드된 파일)이 충족되지 않음.
+    /// `watch_config` preconditions (callback/loaded file) are not satisfied.
     ConfigWatchNotReady,
 
-    /// `mutually_exclusive` 그룹에서 둘 이상의 플래그가 동시에 지정됨.
+    /// Two or more flags in a `mutually_exclusive` group were given at once.
     MutuallyExclusiveFlags {
         group: Vec<String>,
         provided: Vec<String>,
     },
 
-    /// `required_together` 그룹의 일부만 지정됨.
+    /// Only some flags in a `required_together` group were given.
     RequiredFlagsTogether {
         group: Vec<String>,
         missing: Vec<String>,
     },
 
-    /// `one_required` 그룹에서 아무 플래그도 지정되지 않음.
+    /// No flag in the `one_required` group was given.
     OneFlagRequired {
         group: Vec<String>,
     },
 
-    /// 대화형 입력이 필요하지만 stdin이 TTY가 아니거나 `--no-input`이 지정됨.
+    /// Interactive input is required, but stdin is not a TTY or `--no-input` was given.
     InteractiveInputRequired {
-        /// 대신 사용해야 하는 플래그/방법 힌트.
+        /// Hint for the flag/approach to use instead.
         hint: String,
     },
 
-    /// `confirm_severe`에서 확인 문구가 일치하지 않음.
+    /// Confirmation text did not match in `confirm_severe`.
     ConfirmationFailed {
-        /// 요구된 확인 문구.
+        /// The required confirmation text.
         expected: String,
     },
 }
@@ -97,7 +97,7 @@ impl WrCliError {
         WrCliError::UserError(Box::new(e))
     }
 
-    /// 사용법(usage) 오류 여부. true면 프로세스 종료 코드는 [`WrCliError::exit_code`]에서 2.
+    /// Whether this is a usage error. If true, the process exit code is 2 from [`WrCliError::exit_code`].
     pub fn is_usage_error(&self) -> bool {
         matches!(
             self,
@@ -116,7 +116,7 @@ impl WrCliError {
         )
     }
 
-    /// 프로세스 종료에 사용할 코드. 사용법 오류는 2, 그 외는 1.
+    /// Exit code to use for the process. Usage errors are 2, others are 1.
     pub fn exit_code(&self) -> i32 {
         if self.is_usage_error() { 2 } else { 1 }
     }
@@ -271,7 +271,7 @@ impl fmt::Display for WrCliError {
     }
 }
 
-/// 플래그 이름 목록을 `--a, --b` 형태로 포맷.
+/// Formats a list of flag names as `--a, --b`.
 fn format_flag_list(flags: &[String]) -> String {
     flags
         .iter()
@@ -280,7 +280,7 @@ fn format_flag_list(flags: &[String]) -> String {
         .join(", ")
 }
 
-/// 오타 제안 블록을 출력.
+/// Writes the typo suggestion block.
 fn write_suggestions(
     f: &mut fmt::Formatter<'_>,
     suggestions: &[String],

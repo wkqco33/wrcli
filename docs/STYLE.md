@@ -1,12 +1,14 @@
-# wrcli 스타일 가이드
+# wrcli Styling Guide
 
-터미널 출력을 꾸미기 위한 `wrcli::style` 모듈입니다.
-rich 라이브러리에서 영감을 받아 색상, 텍스트 속성, 테이블, 패널, 구분선, 트리,
-진행률 표시줄 등을 제공합니다.
+[English](STYLE.md) | [한국어](STYLE.ko.md)
 
-## 목차
+The `wrcli::style` module for decorating terminal output.
+Inspired by the rich library, it provides colors, text attributes, tables, panels,
+rules, trees, progress bars, and more.
 
-- [시작하기](#시작하기)
+## Table of Contents
+
+- [Getting Started](#getting-started)
 - [Color](#color)
 - [Style](#style)
 - [Text](#text)
@@ -15,30 +17,30 @@ rich 라이브러리에서 영감을 받아 색상, 텍스트 속성, 테이블,
 - [Rule](#rule)
 - [Tree](#tree)
 - [Progress](#progress)
-- [PAGER와 색상 정책](#pager와-색상-정책)
-- [편의 출력 헬퍼](#편의-출력-헬퍼)
+- [PAGER and Color Policy](#pager-and-color-policy)
+- [Convenience Output Helpers](#convenience-output-helpers)
 
 ---
 
-## 시작하기
+## Getting Started
 
 ```rust
 use wrcli::style::{Color, Style, Table, Panel, Rule, Tree, Text, Progress, Align};
 ```
 
-스타일링은 다음 경우 **자동으로 비활성화**됩니다:
+Styling is **automatically disabled** in the following cases:
 
-- `NO_COLOR`이 비어 있지 않게 설정된 경우
-- `TERM=dumb`인 경우
-- 앱 전용 `*_NO_COLOR`(예: `MYAPP_NO_COLOR`)가 설정된 경우
-- 출력 스트림이 터미널이 아닌 경우(파이프 등)
+- When `NO_COLOR` is set to a non-empty value
+- When `TERM=dumb`
+- When an app-specific `*_NO_COLOR` (for example, `MYAPP_NO_COLOR`) is set
+- When the output stream is not a terminal (a pipe, etc.)
 
-`FORCE_COLOR`(비어 있지 않음)는 감지를 무시하고 색상을 켜며, 전역 override
-(`--no-color` / `--color=<when>`)가 가장 우선합니다. 자세한 규칙은
-“PAGER와 색상 정책” 참고.
+`FORCE_COLOR` (non-empty) overrides detection and turns colors on, and a global
+override (`--no-color` / `--color=<when>`) takes the highest priority. See
+“PAGER and Color Policy” for the detailed rules.
 
-모든 렌더링 타입은 `render(styled: bool)`로 문자열을 얻고, `print()`로
-stdout에 출력합니다. `styled`는 `stdout_is_styled()`로 감지합니다.
+Every rendering type produces a string via `render(styled: bool)` and prints to
+stdout via `print()`. `styled` is detected with `stdout_is_styled()`.
 
 ```rust
 use wrcli::style::stdout_is_styled;
@@ -51,23 +53,23 @@ println!("{}", table.render(stdout_is_styled()));
 
 ## Color
 
-16개 표준 ANSI 색상, 8비트(256색), 24비트 RGB 트루컬러를 지원합니다.
+Supports the 16 standard ANSI colors, 8-bit (256 colors), and 24-bit RGB truecolor.
 
-| 이름 | 설명 |
+| Name | Description |
 | ---- | ---- |
-| `Black` … `White` | 표준 8색 |
-| `BrightBlack` … `BrightWhite` | 밝은 8색 |
-| `Fixed(u8)` | 8비트(256색) 인덱스 |
-| `Rgb(u8, u8, u8)` | 24비트 트루컬러 |
+| `Black` … `White` | Standard 8 colors |
+| `BrightBlack` … `BrightWhite` | Bright 8 colors |
+| `Fixed(u8)` | 8-bit (256-color) index |
+| `Rgb(u8, u8, u8)` | 24-bit truecolor |
 
-### 문자열에서 파싱 — `Color::from_name`
+### Parsing from a String — `Color::from_name`
 
 ```rust
 use wrcli::style::Color;
 
 let c1 = Color::from_name("red");            // Some(Color::Red)
 let c2 = Color::from_name("bright_cyan");    // Some(Color::BrightCyan)
-let c3 = Color::from_name("bright cyan");    // 밑줄 대신 공백도 허용
+let c3 = Color::from_name("bright cyan");    // a space is allowed instead of an underscore
 let c4 = Color::from_name("42");             // Some(Color::Fixed(42))
 let c5 = Color::from_name("#ff0000");        // Some(Color::Rgb(255, 0, 0))
 let c6 = Color::from_name("rgb(0,128,255)"); // Some(Color::Rgb(0, 128, 255))
@@ -78,26 +80,26 @@ let c7 = Color::from_name("nope");           // None
 
 ## Style
 
-색상과 텍스트 장식(속성)의 집합입니다. 빌더로 구성 후 `apply(text, styled)`로
-ANSI 이스케이프 문자열을 만듭니다.
+A set of colors and text decorations (attributes). Build it with the builder, then
+produce an ANSI escape string with `apply(text, styled)`.
 
-### 속성
+### Attributes
 
-| 메서드 | ANSI | 설명 |
+| Method | ANSI | Description |
 | ------ | :--: | ---- |
-| `.fg(Color)` | 30–97 | 전경색 |
-| `.bg(Color)` | 40–107 | 배경색 |
-| `.bold()` | 1 | 굵게 |
-| `.dim()` | 2 | 흐리게 |
-| `.italic()` | 3 | 기울임 |
-| `.underline()` | 4 | 밑줄 |
-| `.blink()` | 5 | 깜빡임 |
-| `.reverse()` | 7 | 반전 |
-| `.hide()` | 8 | 숨김 |
-| `.strikethrough()` | 9 | 취소선 |
-| `.overline()` | 53 | 윗줄 |
+| `.fg(Color)` | 30–97 | Foreground color |
+| `.bg(Color)` | 40–107 | Background color |
+| `.bold()` | 1 | Bold |
+| `.dim()` | 2 | Dim |
+| `.italic()` | 3 | Italic |
+| `.underline()` | 4 | Underline |
+| `.blink()` | 5 | Blink |
+| `.reverse()` | 7 | Reverse |
+| `.hide()` | 8 | Hidden |
+| `.strikethrough()` | 9 | Strikethrough |
+| `.overline()` | 53 | Overline |
 
-### 사용 예
+### Usage Example
 
 ```rust
 use wrcli::style::{Style, Color};
@@ -109,16 +111,16 @@ let style = Style::new()
     .underline();
 
 let out = style.apply("Success", true);   // "\x1b[1;4;32;40mSuccess\x1b[0m"
-let plain = style.apply("Success", false); // "Success"  (원본 그대로)
+let plain = style.apply("Success", false); // "Success"  (unchanged)
 ```
 
-`styled = false`이거나 스타일이 비어 있으면 원본 텍스트를 그대로 반환합니다.
+If `styled = false` or the style is empty, the original text is returned unchanged.
 
 ---
 
 ## Text
 
-서로 다른 스타일의 스팬(span)을 이어붙여 하나의 텍스트로 렌더링합니다.
+Concatenates spans of different styles and renders them as a single text.
 
 ```rust
 use wrcli::style::{Text, Style, Color};
@@ -130,85 +132,87 @@ let text = Text::new()
 println!("{}", text.render(false)); // "Error: boom"
 ```
 
-| 메서드 | 설명 |
+| Method | Description |
 | ------ | ---- |
-| `.plain("...")` | 스타일 없는 스팬 추가 |
-| `.span("...", style)` | 주어진 스타일의 스팬 추가 |
-| `.plain_styled("...", style)` | `span`의 별칭 |
+| `.plain("...")` | Add an unstyled span |
+| `.span("...", style)` | Add a span with the given style |
+| `.plain_styled("...", style)` | Alias for `span` |
 
 ---
 
 ## Table
 
-Unicode 박스 문자로 테두리를 표시하는 테이블입니다.
+A table that draws its border with Unicode box characters.
 
 ```rust
 use wrcli::style::{Table, Align};
 
 let out = Table::new()
-    .headers(["이름", "버전", "설명"])
-    .row(["wrcli", "0.1.0", "CLI 프레임워크"])
-    .row(["serde", "1.0",  "직렬화"])
+    .headers(["Name", "Version", "Description"])
+    .row(["wrcli", "0.1.0", "CLI framework"])
+    .row(["serde", "1.0",  "serialization"])
     .align(vec![Align::Left, Align::Center, Align::Right])
     .render(false);
 ```
 
-```
-┌──────┬────────┬──────────────────┐
-│ 이름 │ 버전   │  설명            │
-├──────┼────────┼──────────────────┤
-│ wrcli │ 0.1.0  │     CLI 프레임워크 │
-│ serde │ 1.0    │     직렬화       │
-└──────┴────────┴──────────────────┘
+```text
+┌───────┬─────────┬───────────────┐
+│ Name  │ Version │   Description │
+├───────┼─────────┼───────────────┤
+│ wrcli │  0.1.0  │ CLI framework │
+├───────┼─────────┼───────────────┤
+│ serde │   1.0   │ serialization │
+└───────┴─────────┴───────────────┘
 ```
 
-| 메서드 | 설명 |
+| Method | Description |
 | ------ | ---- |
-| `.headers([...])` | 헤더 행 |
-| `.row([...])` | 데이터 행 (여러 번 호출) |
-| `.align(Vec<Align>)` | 컬럼별 정렬 (`Left`/`Center`/`Right`) |
-| `.border(bool)` | 테두리 표시 여부 (기본 `true`) |
-| `.header_style(Style)` | 헤더 스타일 |
+| `.headers([...])` | Header row |
+| `.row([...])` | Data row (call multiple times) |
+| `.align(Vec<Align>)` | Per-column alignment (`Left`/`Center`/`Right`) |
+| `.border(bool)` | Whether to draw the border (default `true`) |
+| `.header_style(Style)` | Header style |
 
-CJK 문자(한글 등)는 `display_width` 기준으로 2칸으로 계산되어 정렬이 유지됩니다.
+CJK characters (such as Hangul) are counted as 2 columns based on `display_width`,
+so alignment is preserved.
 
 ---
 
 ## Panel
 
-테두리와 선택적 제목이 있는 박스입니다.
+A box with a border and an optional title.
 
 ```rust
 use wrcli::style::{Panel, Style, Color};
 
-let out = Panel::new("배포 완료.\n모든 서비스가 정상입니다.")
-    .title("상태")
+let out = Panel::new("Deploy complete.\nAll services healthy.")
+    .title("Status")
     .border_style(Style::new().fg(Color::Green))
     .padding(1)
-    .width(40)          // 고정 폭 (미지정 시 콘텐츠에 맞춤)
+    .width(40)          // fixed width (fits the content when unset)
     .render(false);
 ```
 
-```
-╭─ 상태 ─────────────────────────────────────────────╮
-│ 배포 완료.                                           │
-│ 모든 서비스가 정상입니다.                             │
-╰─────────────────────────────────────────────────────╯
+```text
+╭── Status ────────────────────────────────╮
+│ Deploy complete.                         │
+│ All services healthy.                    │
+╰──────────────────────────────────────────╯
 ```
 
-| 메서드 | 설명 |
+| Method | Description |
 | ------ | ---- |
-| `.title("...")` | 제목 (선택) |
-| `.border_style(Style)` | 테두리 스타일 |
-| `.title_style(Style)` | 제목 스타일 |
-| `.padding(usize)` | 좌우 패딩 |
-| `.width(usize)` | 내부 고정 폭 |
+| `.title("...")` | Title (optional) |
+| `.border_style(Style)` | Border style |
+| `.title_style(Style)` | Title style |
+| `.padding(usize)` | Left/right padding |
+| `.width(usize)` | Fixed inner width |
 
 ---
 
 ## Rule
 
-선택적으로 중앙 제목이 있는 수평 구분선입니다.
+A horizontal rule with an optional centered title.
 
 ```rust
 use wrcli::style::{Rule, Style, Color};
@@ -217,23 +221,23 @@ let out = Rule::new()
     .title("Configuration")
     .style(Style::new().fg(Color::Yellow))
     .width(60)
-    .line_char('─')    // 기본값
+    .line_char('─')    // default
     .render(false);
 ```
 
-| 메서드 | 설명 |
+| Method | Description |
 | ------ | ---- |
-| `.title("...")` | 중앙 제목 (선택) |
-| `.style(Style)` | 선 스타일 |
-| `.title_style(Style)` | 제목 스타일 |
-| `.width(usize)` | 선 폭 (기본 80) |
-| `.line_char(char)` | 선 문자 (기본 `─`) |
+| `.title("...")` | Centered title (optional) |
+| `.style(Style)` | Line style |
+| `.title_style(Style)` | Title style |
+| `.width(usize)` | Line width (default 80) |
+| `.line_char(char)` | Line character (default `─`) |
 
 ---
 
 ## Tree
 
-계층 트리를 Unicode 박스 문자로 렌더링합니다.
+Renders a hierarchical tree with Unicode box characters.
 
 ```rust
 use wrcli::style::Tree;
@@ -249,7 +253,7 @@ let tree = Tree::new("root")
 println!("{}", tree.render(false));
 ```
 
-```
+```text
 root
 ├── child1
 └── child2
@@ -257,17 +261,17 @@ root
     └── grandchild2
 ```
 
-| 메서드 | 설명 |
+| Method | Description |
 | ------ | ---- |
-| `Tree::new("...")` | 노드 생성 |
-| `.child(Tree)` | 자식 노드 추가 (여러 번 호출) |
-| `.style(Style)` | 이 노드 레이블 스타일 (기본: 청록색) |
+| `Tree::new("...")` | Create a node |
+| `.child(Tree)` | Add a child node (call multiple times) |
+| `.style(Style)` | Style of this node's label (default: cyan) |
 
 ---
 
 ## Progress
 
-터미널 진행률 표시줄입니다.
+A terminal progress bar.
 
 ```rust
 use wrcli::style::{Progress, Style, Color};
@@ -280,31 +284,32 @@ let bar = Progress::new(100)
     .render(false);
 ```
 
-```
+```text
 Downloading [########------------]  42%
 ```
 
-| 메서드 | 설명 |
+| Method | Description |
 | ------ | ---- |
-| `Progress::new(total)` | 총량으로 생성 |
-| `.progress(n)` | 현재 진행량 (0..total) |
-| `.width(usize)` | 표시줄 폭 (기본 30) |
-| `.label("...")` | 앞에 붙는 라벨 |
-| `.bar_style(Style)` | 채워진 부분 스타일 (기본: 녹색) |
-| `.filled_char(char)` | 채워진 문자 (기본 `#`) |
-| `.empty_char(char)` | 빈 문자 (기본 `-`) |
+| `Progress::new(total)` | Create with a total |
+| `.progress(n)` | Current progress (0..total) |
+| `.width(usize)` | Bar width (default 30) |
+| `.label("...")` | Label prepended to the bar |
+| `.bar_style(Style)` | Style of the filled portion (default: green) |
+| `.filled_char(char)` | Filled character (default `#`) |
+| `.empty_char(char)` | Empty character (default `-`) |
 
-### 애니메이션 안전 출력
+### Animation-Safe Output
 
-`draw()`는 stdout이 TTY일 때만 현재 줄을 덮어쓰고, `finish()`는 비TTY에서
-최종 상태를 한 줄로 출력합니다. 파이프·CI 로그에서 애니메이션이 남지 않습니다.
+`draw()` overwrites the current line only when stdout is a TTY, and `finish()`
+prints the final state as a single line when stdout is not a TTY. No animation
+artifacts are left behind in pipes or CI logs.
 
 ```rust
 use wrcli::style::Progress;
 
 let bar = Progress::new(100).progress(42).width(20);
 for n in 0..=100 {
-    bar.progress(n).draw();   // 비TTY에서는 아무것도 출력하지 않음
+    bar.progress(n).draw();   // nothing is printed on a non-TTY
     std::thread::sleep(std::time::Duration::from_millis(10));
 }
 bar.finish();
@@ -312,47 +317,47 @@ bar.finish();
 
 ---
 
-## PAGER와 색상 정책
+## PAGER and Color Policy
 
-긴 출력은 `pager::page()`로 넘기면 stdout이 TTY일 때만 `PAGER`
-(기본 `less -FIRX`)로 보내고, 파이프·CI에서는 그대로 출력합니다.
+Pass long output to `pager::page()` and it is sent to `PAGER`
+(default `less -FIRX`) only when stdout is a TTY; in pipes and CI it is printed as-is.
 
 ```rust
 wrcli::style::pager::page(&long_text)?;
 ```
 
-색상 우선순위(높음→낮음):
+Color priority (highest → lowest):
 
-1. 전역 override — `--no-color`(Never) / `--color=always|never|auto`
-2. `FORCE_COLOR`(비어 있지 않음)
-3. `NO_COLOR`(비어 있지 않음)
+1. Global override — `--no-color` (Never) / `--color=always|never|auto`
+2. `FORCE_COLOR` (non-empty)
+3. `NO_COLOR` (non-empty)
 4. `TERM=dumb`
-5. 앱 전용 `*_NO_COLOR`
-6. TTY 여부
+5. App-specific `*_NO_COLOR`
+6. Whether stdout is a TTY
 
 ```rust
 use wrcli::style::{ColorChoice, set_color_choice, set_no_color_env};
 
-set_no_color_env(Some("MYAPP_NO_COLOR"));  // 앱 전용 변수 등록
-set_color_choice(ColorChoice::Always);     // 전역 override
+set_no_color_env(Some("MYAPP_NO_COLOR"));  // register an app-specific variable
+set_color_choice(ColorChoice::Always);     // global override
 ```
 
-색상과 무관한 TTY 확인은 `stdout_is_terminal()` / `stdin_is_terminal()`을 쓴다.
+For TTY checks unrelated to color, use `stdout_is_terminal()` / `stdin_is_terminal()`.
 
 ---
 
-## 편의 출력 헬퍼
+## Convenience Output Helpers
 
-`wrcli::style`에 상태 메시지를 빠르게 출력하는 헬퍼가 있습니다.
+`wrcli::style` provides helpers for quickly printing status messages.
 
 ```rust
 use wrcli::style::{print_success, print_error, print_warning, print_info};
 
-print_success("빌드 완료");   // ✓ (녹색)
-print_error("작업 실패");     // ✗ (빨간색, stderr)
-print_warning("설정 누락");   // ⚠ (노란색)
-print_info("처리 중...");     // ℹ (청록색)
+print_success("Build complete");   // ✓ (green)
+print_error("Task failed");        // ✗ (red, stderr)
+print_warning("Missing config");   // ⚠ (yellow)
+print_info("Processing...");       // ℹ (cyan)
 ```
 
-또한 `stdout_is_styled()`, `stderr_is_styled()`, `display_width(s)`(CJK 2칸
-계산) 유틸리티를 제공합니다.
+It also provides the `stdout_is_styled()`, `stderr_is_styled()`, and
+`display_width(s)` (CJK 2-column calculation) utilities.

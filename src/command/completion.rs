@@ -5,9 +5,10 @@ use super::dispatch::takes_value;
 use crate::error::Result;
 use crate::flag::Flag;
 
-/// 내장 `help` 서브커맨드를 목록에 추가할지 여부.
+/// Whether to include the built-in `help` subcommand in the list.
 ///
-/// 사용자가 `help`를 직접 등록했거나 보여줄 서브커맨드가 없으면 추가하지 않는다.
+/// It is not added when the user has registered `help` themselves or there are no
+/// subcommands to show.
 fn builtin_help_available(cmd: &Command) -> bool {
     cmd.find_subcommand("help").is_none() && cmd.subcommands.iter().any(|c| !c.hidden)
 }
@@ -184,10 +185,11 @@ impl Command {
         Ok(out)
     }
 
-    /// 현재 입력 중인 토큰에 대한 동적 completion 후보를 계산.
+    /// Compute dynamic completion candidates for the token currently being typed.
     ///
-    /// `args`는 프로그램 이름 이후의 인자들이며, 마지막 원소가 완성 중인 토큰이다.
-    /// 하위 커맨드로 이동하며 플래그/서브커맨드/`arg_candidates` 후보를 반환한다.
+    /// `args` are the arguments after the program name, and the last element is the token
+    /// being completed.
+    /// Descends into subcommands and returns flag/subcommand/`arg_candidates` candidates.
     pub fn complete(&self, args: &[String]) -> Vec<String> {
         let current = args.last().cloned().unwrap_or_default();
         let prior = &args[..args.len().saturating_sub(1)];
@@ -284,9 +286,9 @@ impl Command {
         out
     }
 
-    /// `__complete` 프로토콜 요청이면 후보를 반환.
+    /// Return candidates if this is a `__complete` protocol request.
     ///
-    /// `args`는 프로그램 이름 이후의 인자들이다. 첫 토큰이 `__complete`가 아니면 `None`.
+    /// `args` are the arguments after the program name. Returns `None` if the first token is not `__complete`.
     ///
     /// ```no_run
     /// # use wrcli::Command;

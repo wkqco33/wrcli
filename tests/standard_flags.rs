@@ -1,5 +1,5 @@
-//! clig.dev 표준 플래그(`-q/--quiet`, `--no-input`, `-f/--force`, `--no-color`,
-//! `--plain`, `--json`)와 [`OutputFormat`] 테스트.
+//! Tests for the clig.dev standard flags (`-q/--quiet`, `--no-input`, `-f/--force`, `--no-color`,
+//! `--plain`, `--json`) and [`OutputFormat`].
 
 mod common;
 

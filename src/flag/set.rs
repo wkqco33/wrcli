@@ -6,7 +6,7 @@ use super::value::FlagValue;
 use crate::config::Config;
 use crate::error::{Result, WrCliError};
 
-/// 민감 플래그면 실제 값을 `***`로 가린다.
+/// Redact the actual value to `***` for sensitive flags.
 fn redact(flag: &Flag, value: &str) -> String {
     if flag.sensitive {
         "***".to_owned()
@@ -15,7 +15,7 @@ fn redact(flag: &Flag, value: &str) -> String {
     }
 }
 
-/// 쉼표 분리 대상 값을 분리하고 공백을 제거. `comma`가 false면 원본 하나.
+/// Split a comma-separated value and trim whitespace. If `comma` is false, returns the original as a single element.
 fn split_values(s: String, comma: bool) -> Vec<String> {
     if comma {
         s.split(',')
@@ -27,13 +27,13 @@ fn split_values(s: String, comma: bool) -> Vec<String> {
     }
 }
 
-/// 단일 커맨드의 모든 플래그를 담는 컨테이너. 삽입 순서 보존 (help 출력용).
+/// Container holding all flags of a single command. Preserves insertion order (for help output).
 #[derive(Debug, Default, Clone)]
 pub struct FlagSet {
     flags: IndexMap<String, Flag>,
     short_map: HashMap<char, String>,
     values: HashMap<String, FlagValue>,
-    /// 사용자가 argv로 명시한 플래그 이름 (설정에서 시드된 값은 제외).
+    /// Flag names the user specified on argv (excluding values seeded from config).
     user_set: HashSet<String>,
     command_name: String,
 }
@@ -47,11 +47,11 @@ impl FlagSet {
         self.command_name = name.to_owned();
     }
 
-    /// 플래그 추가.
+    /// Add a flag.
     ///
     /// # Panics
-    /// 이름 또는 short 문자가 이미 등록된 플래그와 충돌하면 패닉. 조용히 덮어쓰면
-    /// 잘못된 커맨드 트리 구성을 런타임까지 숨기게 되므로, 구성 시점에 즉시 실패시킴.
+    /// Panics if the name or short character conflicts with an already registered flag. A silent
+    /// overwrite would hide an invalid command tree until runtime, so fail immediately at build time.
     pub fn add(&mut self, flag: Flag) {
         let name = flag.name.clone();
         assert!(
@@ -69,14 +69,14 @@ impl FlagSet {
         self.flags.insert(name, flag);
     }
 
-    /// 이름이 없는 경우에만 추가 (persistent 플래그 주입용).
+    /// Add only if the name is absent (for injecting persistent flags).
     pub fn add_if_absent(&mut self, flag: &Flag) {
         if !self.flags.contains_key(&flag.name) {
             self.add(flag.clone());
         }
     }
 
-    /// 부모 커맨드에서 상속된 persistent 플래그를 추가 (help에서 Global Flags로 분리).
+    /// Add a persistent flag inherited from a parent command (separated as Global Flags in help).
     pub(crate) fn add_inherited(&mut self, flag: &Flag) {
         if !self.flags.contains_key(&flag.name) {
             let mut inherited = flag.clone();
@@ -85,18 +85,18 @@ impl FlagSet {
         }
     }
 
-    /// 이름으로 플래그 정의 조회.
+    /// Look up a flag definition by name.
     pub fn get_flag(&self, name: &str) -> Option<&Flag> {
         self.flags.get(name)
     }
 
-    /// short 문자로 등록된 플래그 정의 조회 (서브커맨드 라우팅 dry-run용).
+    /// Look up the flag definition registered for a short character (for subcommand routing dry-run).
     pub(crate) fn short_flag(&self, c: char) -> Option<&Flag> {
         let name = self.short_map.get(&c)?;
         self.flags.get(name.as_str())
     }
 
-    /// 플래그 값 조회. 없으면 기본값 반환.
+    /// Get a flag value. Returns the default value if not set.
     pub fn get(&self, name: &str) -> Option<&FlagValue> {
         self.values
             .get(name)
@@ -124,7 +124,7 @@ impl FlagSet {
         }
     }
 
-    /// `u64` 값 조회 (음수 `Int`는 `None`).
+    /// Get a `u64` value (a negative `Int` yields `None`).
     pub fn get_uint(&self, name: &str) -> Option<u64> {
         match self.get(name)? {
             FlagValue::Int(v) if *v >= 0 => Some(*v as u64),
@@ -153,34 +153,34 @@ impl FlagSet {
         }
     }
 
-    /// 삽입 순서대로 모든 플래그 반복 (help 출력용).
+    /// Iterate over all flags in insertion order (for help output).
     pub fn flags_iter(&self) -> impl Iterator<Item = &Flag> {
         self.flags.values()
     }
 
-    /// persistent 플래그만 반복 (하위 커맨드 전파용).
+    /// Iterate over only persistent flags (for propagating to subcommands).
     pub fn persistent_flags(&self) -> impl Iterator<Item = &Flag> {
         self.flags.values().filter(|f| f.persistent)
     }
 
-    /// 사용자가 명시적으로 입력한 값만 반복 (기본값/설정 시드 제외).
-    /// 디스패치 엔진이 Config 레이어 4 바인딩 시 사용.
+    /// Iterate over only values the user entered explicitly (excluding defaults/config seeds).
+    /// Used by the dispatch engine when binding Config layer 4.
     pub(crate) fn values_iter(&self) -> impl Iterator<Item = (&str, &FlagValue)> {
         self.user_set
             .iter()
             .filter_map(|k| self.values.get(k).map(|v| (k.as_str(), v)))
     }
 
-    /// 사용자가 argv로 이 플래그를 명시적으로 지정했는지 확인.
+    /// Whether the user explicitly specified this flag on argv.
     ///
-    /// 설정에서 시드된 값이나 기본값은 `false`를 반환한다.
+    /// Returns `false` for values seeded from config or for defaults.
     pub fn is_set(&self, name: &str) -> bool {
         self.user_set.contains(name)
     }
 
-    /// 명시적으로 설정되지 않은 플래그를 설정 저장소 값으로 시드.
+    /// Seed flags that were not set explicitly with values from the config store.
     ///
-    /// 플래그 기본값 타입에 맞는 설정값만 주입한다.
+    /// Injects only config values matching the flag's default value type.
     pub(crate) fn seed_from_config(&mut self, config: &Config) {
         let FlagSet { flags, values, .. } = self;
         for name in flags.keys() {
@@ -199,27 +199,27 @@ impl FlagSet {
         }
     }
 
-    /// argv 토큰 파싱. 플래그 아닌 나머지 토큰을 위치 인자로 반환.
+    /// Parse argv tokens. Returns the remaining non-flag tokens as positional arguments.
     ///
-    /// 지원 형식:
+    /// Supported forms:
     /// - `--name=value`, `--name value`
-    /// - `-c value` (그룹 마지막 short 플래그가 값을 가질 수 있음)
-    /// - `-abc` (모두 bool인 short 플래그 그룹)
-    /// - `--` sentinel (이후 모두 위치 인자)
-    /// - Bool 플래그는 값 없이 존재하면 `true`로 처리
+    /// - `-c value` (only the last short flag in a group may take a value)
+    /// - `-abc` (a group of short flags that are all bool)
+    /// - `--` sentinel (everything after is a positional argument)
+    /// - A bool flag present without a value is treated as `true`
     pub fn parse(&mut self, args: Vec<String>) -> Result<Vec<String>> {
         self.parse_inner(args, true)
     }
 
-    /// 서브커맨드 앞의 부모 플래그를 소비하기 위한 변형.
+    /// Variant for consuming parent flags that precede a subcommand.
     ///
-    /// required 플래그 검증은 리프 커맨드에서만 수행하므로 여기서는 건너뛴다.
+    /// Required-flag validation runs only in the leaf command, so it is skipped here.
     pub(crate) fn parse_partial(&mut self, args: Vec<String>) -> Result<Vec<String>> {
         self.parse_inner(args, false)
     }
 
     fn parse_inner(&mut self, args: Vec<String>, validate_required: bool) -> Result<Vec<String>> {
-        log::trace!("플래그 파싱 시작: {:?}", args);
+        log::trace!("flag parsing start: {:?}", args);
         let mut positional = Vec::new();
         let mut iter = args.into_iter().peekable();
 
@@ -248,10 +248,10 @@ impl FlagSet {
         Ok(positional)
     }
 
-    /// 부모에서 소비된 플래그 값을 하위 FlagSet으로 복사.
+    /// Copy flag values consumed in the parent into the child FlagSet.
     ///
-    /// 하위가 같은 이름을 재정의하면 하위 파싱이 덮어쓴다. 정의(help/completion)는
-    /// 추가하지 않으므로 부모 로컬 플래그는 하위 help에 노출되지 않는다.
+    /// If the child redefines the same name, child parsing overwrites it. Definitions
+    /// (help/completion) are not added, so parent local flags are not exposed in child help.
     pub(crate) fn inherit_values(&mut self, parent: &FlagSet) {
         for (name, value) in &parent.values {
             self.values
@@ -446,7 +446,7 @@ impl FlagSet {
                 }),
             },
             FlagValue::StringVec(_) | FlagValue::IntVec(_) => {
-                // StringVec/IntVec는 parse_long에서 직접 처리되므로 여기 도달하면 버그
+                // StringVec/IntVec are handled directly in parse_long, so reaching here is a bug
                 Ok(FlagValue::String(s.to_owned()))
             }
         }

@@ -4,14 +4,14 @@ use crate::config::Config;
 use crate::error::{Result, WrCliError};
 use crate::flag::{Flag, FlagSet, FlagValue};
 
-/// 인자 없이 실행되는 콜백 타입.
+/// Callback type invoked without arguments.
 pub type RunFn = Box<dyn for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync>;
-/// 에러를 반환할 수 있는 콜백 타입. Err 반환 시 라이프사이클 체인 중단.
+/// Callback type that can return an error. Returning `Err` aborts the lifecycle chain.
 pub type RunEFn = Box<dyn for<'ctx> Fn(&CommandContext<'ctx>) -> Result<()> + Send + Sync>;
 
-/// CLI 트리의 커맨드 노드.
+/// A command node in the CLI tree.
 ///
-/// 플루언트 빌더 API로 구성 후 루트 커맨드에서 [`crate::Command::execute`] 호출.
+/// Configure it with the fluent builder API, then call [`crate::Command::execute`] on the root command.
 ///
 /// # Example
 /// ```no_run
@@ -36,19 +36,19 @@ pub struct Command {
     pub(crate) hidden: bool,
     pub(crate) deprecated: Option<String>,
     pub(crate) suggest_for: Vec<String>,
-    /// `--help`의 usage 줄에 표시할 포지셔널 힌트 (예: `"<name>"`).
+    /// Positional hint shown on the `--help` usage line (e.g. `"<name>"`).
     pub(crate) usage_args: Option<String>,
-    /// help에서 Usage 다음에 표시되는 예제 목록 (clig.dev: 예제를 앞에 둠).
+    /// List of examples shown after Usage in help (clig.dev: keep examples up front).
     pub(crate) examples: Vec<String>,
-    /// help 하단에 표시할 이슈/피드백 URL.
+    /// Issue/feedback URL shown at the bottom of help.
     pub(crate) support_url: Option<String>,
-    /// help 하단에 표시할 문서 URL. `{command}`가 전체 커맨드 경로로 치환됨.
+    /// Documentation URL shown at the bottom of help. `{command}` is replaced with the full command path.
     pub(crate) docs_url: Option<String>,
-    /// 예기치 못한 오류 시 `execute_or_exit`이 안내할 버그 리포트 URL.
+    /// Bug report URL that `execute_or_exit` shows on an unexpected error.
     pub(crate) bug_report_url: Option<String>,
-    /// 러너가 없을 때 도움말을 출력하고 성공으로 종료.
+    /// Print help and exit successfully when there is no runner.
     pub(crate) help_on_missing_runner: bool,
-    /// Ctrl-C 수신 시 출력할 메시지 (`signal` 피처).
+    /// Message to print on Ctrl-C (`signal` feature).
     #[cfg(feature = "signal")]
     pub(crate) interrupt_message: Option<&'static str>,
 
@@ -56,7 +56,7 @@ pub struct Command {
     pub(crate) subcommands: Vec<Command>,
 
     pub(crate) arg_validator: Option<args::ArgValidator>,
-    /// 포지셔널 인수 동적 completion 후보 생성기.
+    /// Generator for dynamic completion candidates for positional arguments.
     pub(crate) arg_candidates: Option<ArgCandidatesFn>,
     pub(crate) mutually_exclusive: Vec<Vec<String>>,
     pub(crate) required_together: Vec<Vec<String>>,
@@ -69,7 +69,7 @@ pub struct Command {
     pub(crate) post_run: Option<RunFn>,
     pub(crate) persistent_post_run: Option<RunFn>,
 
-    /// 루트 커맨드만 Config를 보유. 실행 중 참조로 전달됨.
+    /// Only the root command holds the Config. It is passed by reference during execution.
     pub(crate) config: Option<Config>,
 }
 
@@ -113,115 +113,115 @@ impl Command {
         }
     }
 
-    /// 부모 커맨드 목록에 표시되는 한 줄 설명.
+    /// One-line description shown in the parent command's list.
     pub fn short(mut self, s: &str) -> Self {
         self.short = s.to_owned();
         self
     }
 
-    /// 이 커맨드 자체 `--help`에 표시되는 긴 설명.
+    /// Long description shown in this command's own `--help`.
     pub fn long(mut self, s: &str) -> Self {
         self.long = s.to_owned();
         self
     }
 
-    /// 버전 문자열. `--version` / `-V` 플래그를 활성화.
+    /// Version string. Enables the `--version` / `-V` flags.
     pub fn version(mut self, v: &str) -> Self {
         self.version = Some(v.to_owned());
         self
     }
 
-    /// 커맨드 별칭 추가.
+    /// Add a command alias.
     pub fn alias(mut self, a: &str) -> Self {
         self.aliases.push(a.to_owned());
         self
     }
 
-    /// help와 completion 목록에서 이 커맨드를 숨김 (실행은 계속 가능).
+    /// Hide this command from help and completion listings (it can still run).
     pub fn hidden(mut self) -> Self {
         self.hidden = true;
         self
     }
 
-    /// deprecated 커맨드로 표시. 실행 시 stderr에 경고를 출력.
+    /// Mark the command as deprecated. Prints a warning to stderr when it runs.
     pub fn deprecated(mut self, msg: &str) -> Self {
         self.deprecated = Some(msg.to_owned());
         self
     }
 
-    /// 오타 입력 시 이 커맨드를 제안할 별칭 추가 (Cobra의 `SuggestFor`).
+    /// Add an alias used to suggest this command on typos (Cobra's `SuggestFor`).
     ///
-    /// 실제 별칭과 달리 실행되지 않고, `Did you mean` 후보로만 사용된다.
+    /// Unlike a real alias, it cannot be executed and is only used as a `Did you mean` candidate.
     pub fn suggest_for(mut self, name: &str) -> Self {
         self.suggest_for.push(name.to_owned());
         self
     }
 
-    /// `--help`의 usage 줄에 표시할 포지셔널 힌트 (예: `"<name>"`, `"SRC DST"`).
+    /// Positional hint shown on the `--help` usage line (e.g. `"<name>"`, `"SRC DST"`).
     pub fn usage_args(mut self, hint: &str) -> Self {
         self.usage_args = Some(hint.to_owned());
         self
     }
 
-    /// help의 Usage 바로 다음에 표시할 예제를 추가한다 (여러 번 호출 가능).
+    /// Add an example shown right after Usage in help (can be called multiple times).
     pub fn example(mut self, e: &str) -> Self {
         self.examples.push(e.to_owned());
         self
     }
 
-    /// help 하단에 표시할 이슈/피드백 URL.
+    /// Issue/feedback URL shown at the bottom of help.
     pub fn support_url(mut self, url: &str) -> Self {
         self.support_url = Some(url.to_owned());
         self
     }
 
-    /// help 하단에 표시할 문서 URL. `{command}`는 전체 커맨드 경로로 치환된다.
+    /// Documentation URL shown at the bottom of help. `{command}` is replaced with the full command path.
     pub fn docs_url(mut self, url: &str) -> Self {
         self.docs_url = Some(url.to_owned());
         self
     }
 
-    /// 예기치 못한 오류 시 [`Command::execute_or_exit`]이 안내할 버그 리포트 URL.
+    /// Bug report URL that [`Command::execute_or_exit`] shows on an unexpected error.
     pub fn bug_report_url(mut self, url: &str) -> Self {
         self.bug_report_url = Some(url.to_owned());
         self
     }
 
-    /// 러너가 없어도 도움말을 출력하고 성공(종료 코드 0)으로 끝낸다.
+    /// Print help and finish successfully (exit code 0) even without a runner.
     ///
-    /// 서브커맨드를 가진 상위 커맨드는 이 설정 없이도 자동으로 이 동작을 한다.
+    /// Parent commands with subcommands do this automatically without this setting.
     pub fn help_on_missing_runner(mut self) -> Self {
         self.help_on_missing_runner = true;
         self
     }
 
-    /// Ctrl-C(SIGINT) 수신 시 메시지를 즉시 출력하고 종료 코드 130으로 끝낸다.
+    /// On Ctrl-C (SIGINT), print the message immediately and exit with code 130.
     ///
-    /// `signal` 피처가 필요하다.
+    /// Requires the `signal` feature.
     #[cfg(feature = "signal")]
     pub fn interrupt_message(mut self, message: &'static str) -> Self {
         self.interrupt_message = Some(message);
         self
     }
 
-    /// 등록된 예제 목록.
+    /// The list of registered examples.
     pub fn examples(&self) -> &[String] {
         &self.examples
     }
 
-    /// 이름 또는 별칭으로 서브커맨드 조회.
+    /// Look up a subcommand by name or alias.
     pub(crate) fn find_subcommand(&self, name: &str) -> Option<&Command> {
         self.subcommands
             .iter()
             .find(|c| c.name == name || c.aliases.iter().any(|a| a == name))
     }
 
-    /// 이름/별칭이 `name`인 서브커맨드가 등록되어 있는지.
+    /// Whether a subcommand with name/alias `name` is registered.
     pub(crate) fn has_subcommand_named(&self, name: &str) -> bool {
         self.find_subcommand(name).is_some()
     }
 
-    /// `name`에 대한 편집 거리 기반 서브커맨드 제안 (hidden 제외, `suggest_for` 포함).
+    /// Edit-distance based subcommand suggestions for `name` (excluding hidden ones, including `suggest_for`).
     pub(crate) fn subcommand_suggestions(&self, name: &str) -> Vec<String> {
         let mut suggestions = crate::suggest::closest(
             name,
@@ -238,7 +238,7 @@ impl Command {
         suggestions
     }
 
-    /// 미등록 서브커맨드 오류 생성 (제안 포함).
+    /// Build an unknown-subcommand error (including suggestions).
     pub(crate) fn unknown_subcommand_error(&self, name: &str, parent: &str) -> WrCliError {
         WrCliError::UnknownSubcommand {
             name: name.to_owned(),
@@ -247,44 +247,44 @@ impl Command {
         }
     }
 
-    /// 이 그룹의 플래그 중 둘 이상을 함께 지정하면 오류.
+    /// Error if two or more flags in this group are specified together.
     pub fn mutually_exclusive(mut self, flags: &[&str]) -> Self {
         self.mutually_exclusive.push(names(flags));
         self
     }
 
-    /// 이 그룹의 플래그는 일부만 지정하면 오류 (전부 또는 전무).
+    /// Error if only some flags in this group are specified (all or nothing).
     pub fn required_together(mut self, flags: &[&str]) -> Self {
         self.required_together.push(names(flags));
         self
     }
 
-    /// 이 그룹에서 최소 하나의 플래그를 지정해야 함.
+    /// At least one flag in this group must be specified.
     pub fn one_required(mut self, flags: &[&str]) -> Self {
         self.one_required.push(names(flags));
         self
     }
 
-    /// 로컬 플래그 추가 (하위 커맨드에 전파되지 않음).
+    /// Add a local flag (not propagated to subcommands).
     pub fn flag(mut self, flag: Flag) -> Self {
         self.flags.add(flag);
         self
     }
 
-    /// persistent 플래그 추가 (모든 하위 커맨드에 자동 전파).
+    /// Add a persistent flag (automatically propagated to all subcommands).
     pub fn persistent_flag(mut self, mut flag: Flag) -> Self {
         flag.persistent = true;
         self.flags.add(flag);
         self
     }
 
-    /// clig.dev 표준 플래그 묶음을 등록한다.
+    /// Register the clig.dev standard flag bundle.
     ///
     /// `-q/--quiet`, `-f/--force`, `--no-input`, `--no-color`,
-    /// `--plain`, `--json`, `--color <when>`. `--plain`과 `--json`은 상호 배타로 검증된다.
+    /// `--plain`, `--json`, `--color <when>`. `--plain` and `--json` are validated as mutually exclusive.
     ///
-    /// 앱 전역 관례에 해당하므로 persistent 플래그로 등록되어 모든 서브커맨드에 전파되고,
-    /// `list --plain`과 `--plain list`가 모두 동작한다.
+    /// Because these are app-wide conventions, they are registered as persistent flags and
+    /// propagated to all subcommands, so both `list --plain` and `--plain list` work.
     pub fn standard_flags(mut self) -> Self {
         self = self.persistent_flag(
             Flag::new(
@@ -327,10 +327,10 @@ impl Command {
         self
     }
 
-    /// 서브커맨드 추가.
+    /// Add a subcommand.
     ///
     /// # Panics
-    /// 이름 또는 별칭이 이미 등록된 서브커맨드와 충돌하면 패닉.
+    /// Panics if the name or an alias conflicts with an already registered subcommand.
     pub fn subcommand(mut self, cmd: Command) -> Self {
         for existing in &self.subcommands {
             let names = std::iter::once(&cmd.name).chain(cmd.aliases.iter());
@@ -346,15 +346,15 @@ impl Command {
         self
     }
 
-    /// 위치 인자 검증기 설정. [`args`] 모듈의 내장 함수 참조.
+    /// Set the positional argument validator. See the built-in functions in the [`args`] module.
     pub fn args(mut self, validator: args::ArgValidator) -> Self {
         self.arg_validator = Some(validator);
         self
     }
 
-    /// 포지셔널 인수 동적 completion 후보를 제공하는 함수 등록.
+    /// Register a function that provides dynamic completion candidates for positional arguments.
     ///
-    /// 이미 입력된 포지셔널 인수 목록을 받아 후보를 반환한다.
+    /// Receives the list of positional arguments entered so far and returns candidates.
     pub fn arg_candidates<F>(mut self, f: F) -> Self
     where
         F: Fn(&[String]) -> Vec<String> + Send + Sync + 'static,
@@ -363,15 +363,15 @@ impl Command {
         self
     }
 
-    /// 설정 저장소(Viper 등가물)를 커맨드 트리에 연결.
+    /// Attach a configuration store (Viper equivalent) to the command tree.
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = Some(config);
         self
     }
 
-    // ── 라이프사이클 콜백 ─────────────────────────────────────────────────────
+    // ── Lifecycle callbacks ─────────────────────────────────────────────────────
 
-    /// 루트→리프 순서로 모든 커맨드 실행 전 호출.
+    /// Called before running every command, in root-to-leaf order.
     pub fn on_persistent_pre_run<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync + 'static,
@@ -380,7 +380,7 @@ impl Command {
         self
     }
 
-    /// 매칭된 리프 커맨드의 `on_run` 직전에만 호출.
+    /// Called only immediately before the matched leaf command's `on_run`.
     pub fn on_pre_run<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync + 'static,
@@ -389,7 +389,7 @@ impl Command {
         self
     }
 
-    /// 이 커맨드의 실행 핸들러.
+    /// The run handler for this command.
     pub fn on_run<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync + 'static,
@@ -398,7 +398,7 @@ impl Command {
         self
     }
 
-    /// 이 커맨드의 실행 핸들러. `Err` 반환 시 post-run 훅 중단.
+    /// The run handler for this command. Returning `Err` aborts the post-run hooks.
     pub fn on_run_e<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) -> Result<()> + Send + Sync + 'static,
@@ -407,7 +407,7 @@ impl Command {
         self
     }
 
-    /// 매칭된 리프 커맨드의 `on_run` 직후에만 호출.
+    /// Called only immediately after the matched leaf command's `on_run`.
     pub fn on_post_run<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync + 'static,
@@ -416,7 +416,7 @@ impl Command {
         self
     }
 
-    /// 리프→루트 순서로 모든 커맨드 실행 후 호출.
+    /// Called after running every command, in leaf-to-root order.
     pub fn on_persistent_post_run<F>(mut self, f: F) -> Self
     where
         F: for<'ctx> Fn(&CommandContext<'ctx>) + Send + Sync + 'static,
@@ -426,17 +426,17 @@ impl Command {
     }
 }
 
-/// 리프 커맨드 실행 전에 검증할 플래그 제약 그룹.
+/// A group of flag constraints validated before running the leaf command.
 pub(crate) enum FlagGroup {
     MutuallyExclusive(Vec<String>),
     RequiredTogether(Vec<String>),
     OneRequired(Vec<String>),
 }
 
-/// `&[&str]`을 소유 `Vec<String>`으로 변환.
+/// Convert `&[&str]` into an owned `Vec<String>`.
 fn names(flags: &[&str]) -> Vec<String> {
     flags.iter().map(|f| (*f).to_owned()).collect()
 }
 
-/// 포지셔널 인수 동적 completion 후보 생성기 타입.
+/// Type of the dynamic completion candidate generator for positional arguments.
 pub(crate) type ArgCandidatesFn = Box<dyn Fn(&[String]) -> Vec<String> + Send + Sync>;

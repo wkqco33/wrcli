@@ -1,6 +1,6 @@
-/// 터미널 전경색 또는 배경색.
+/// A terminal foreground or background color.
 ///
-/// 16개 표준 ANSI 색상, 8비트(256색) 고정 팔레트, 24비트 RGB 트루컬러를 지원.
+/// Supports the 16 standard ANSI colors, the 8-bit (256-color) fixed palette, and 24-bit RGB truecolor.
 use std::fmt::Write as _;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
@@ -20,9 +20,9 @@ pub enum Color {
     BrightMagenta,
     BrightCyan,
     BrightWhite,
-    /// 8비트(256색) 터미널 색상 인덱스.
+    /// 8-bit (256-color) terminal color index.
     Fixed(u8),
-    /// 24비트 RGB 트루컬러.
+    /// 24-bit RGB truecolor.
     Rgb(u8, u8, u8),
 }
 
@@ -95,14 +95,14 @@ impl Color {
         }
     }
 
-    /// 문자열에서 색상을 파싱.
+    /// Parses a color from a string.
     ///
-    /// - 표준 색상 이름: `"red"`, `"bright_cyan"`(또는 `"bright cyan"`)
-    /// - 8비트 인덱스: `"42"`
-    /// - 24비트 hex: `"#ff0000"`
-    /// - 24비트 rgb: `"rgb(0,128,255)"`
+    /// - Standard color names: `"red"`, `"bright_cyan"` (or `"bright cyan"`)
+    /// - 8-bit index: `"42"`
+    /// - 24-bit hex: `"#ff0000"`
+    /// - 24-bit rgb: `"rgb(0,128,255)"`
     ///
-    /// 파싱 실패 시 `None` 반환.
+    /// Returns `None` if parsing fails.
     pub fn from_name(s: &str) -> Option<Color> {
         let trimmed = s.trim();
         let normalized = trimmed.to_ascii_lowercase();
@@ -129,7 +129,7 @@ impl Color {
     }
 }
 
-/// 8비트 인덱스, hex, 또는 rgb() 형식의 색상 문자열을 파싱.
+/// Parses a color string in 8-bit index, hex, or rgb() form.
 fn parse_numeric(s: &str) -> Option<Color> {
     if let Some(hex) = s.strip_prefix('#') {
         return parse_hex(hex);

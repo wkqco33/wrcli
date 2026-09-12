@@ -17,7 +17,7 @@ use super::settings::SettingsEntry;
 use super::settings::SettingsMap;
 use crate::error::{Result, WrCliError};
 
-/// 중첩 설정 트리를 `ext` 포맷의 문자열로 직렬화.
+/// Serializes a nested settings tree into a string in the `ext` format.
 #[allow(unused_variables)]
 pub(super) fn serialize(values: &SettingsMap, ext: &str, path: &str) -> Result<String> {
     match ext {
@@ -35,7 +35,7 @@ pub(super) fn serialize(values: &SettingsMap, ext: &str, path: &str) -> Result<S
     }
 }
 
-/// 리프 값을 점 표기 키 목록으로 평탄화.
+/// Flattens leaf values into a list of dot-notation keys.
 #[cfg(any(
     feature = "dotenv-config",
     feature = "properties-config",

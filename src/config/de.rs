@@ -1,4 +1,4 @@
-//! `serde` 기반 역직렬화 ([`super::Config::unmarshal`]).
+//! `serde`-based deserialization ([`super::Config::unmarshal`]).
 
 use super::ConfigValue;
 use super::settings::{SettingsEntry, SettingsMap};

@@ -1,9 +1,9 @@
 use super::Color;
 use std::fmt::Write as _;
 
-/// 텍스트 스타일 속성 집합 (색상 + 장식).
+/// A set of text style attributes (color + decorations).
 ///
-/// 플루언트 빌더 API로 구성 후 [`Style::apply`]로 ANSI 이스케이프 문자열 생성.
+/// Configure with the fluent builder API, then generate an ANSI escape string with [`Style::apply`].
 ///
 /// # Example
 ///
@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 ///
 /// let s = Style::new().fg(Color::Green).bold().underline();
 /// let text = s.apply("Success", false);
-/// assert_eq!(text, "Success"); // TTY 아닐 때는 원본 반환
+/// assert_eq!(text, "Success"); // returns the original text when not a TTY
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct Style {
@@ -89,10 +89,10 @@ impl Style {
         self
     }
 
-    /// 스타일을 `text`에 적용.
+    /// Applies the style to `text`.
     ///
-    /// `styled`가 `true`이면 ANSI 이스케이프 시퀀스로 감싼 문자열 반환.
-    /// `false`이면 원본 텍스트 그대로 반환.
+    /// When `styled` is `true`, returns a string wrapped in ANSI escape sequences.
+    /// When `false`, returns the original text as is.
     pub fn apply(&self, text: &str, styled: bool) -> String {
         if !styled || self.is_plain() {
             return text.to_owned();

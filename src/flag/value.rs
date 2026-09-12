@@ -1,6 +1,6 @@
 use crate::config::ConfigValue;
 
-/// 플래그의 타입별 값 — 기본값을 통해 타입 태그 역할도 함.
+/// A flag's typed value — also acts as a type tag through its default.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FlagValue {
     Bool(bool),
@@ -72,8 +72,8 @@ impl FlagValue {
     }
 }
 
-/// 설정값을 플래그 값으로 변환. 플래그 기본값의 타입에 맞춰 변환하며,
-/// 타입이 맞지 않으면 `None` 반환.
+/// Convert a config value into a flag value, matching the type of the flag's default.
+/// Returns `None` if the type does not match.
 pub(crate) fn flag_value_from_config(default: &FlagValue, cv: ConfigValue) -> Option<FlagValue> {
     match default {
         FlagValue::Bool(_) => cv.as_bool().map(FlagValue::Bool),

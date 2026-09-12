@@ -1,9 +1,9 @@
 use super::{Style, stdout_is_styled};
 
-/// 서로 다른 스타일의 스팬(span)을 이어붙여 하나의 텍스트로 렌더링.
+/// Renders several spans with different styles concatenated into a single text.
 ///
-/// rich 라이브러리의 `Text`에서 영감을 받음. 각 스팬에 개별 스타일을 적용하고,
-/// ANSI 이스케이프 코드로 감싸 병합한다.
+/// Inspired by the rich library's `Text`. Applies an individual style to each span
+/// and wraps it in ANSI escape codes to merge them.
 ///
 /// # Example
 ///
@@ -27,32 +27,32 @@ impl Text {
         Default::default()
     }
 
-    /// 기본 스타일(스타일 없음)로 텍스트 추가.
+    /// Appends text with the default (no) style.
     pub fn plain(mut self, s: &str) -> Self {
         self.spans.push((s.to_owned(), Style::new()));
         self
     }
 
-    /// 주어진 스타일로 텍스트 추가.
+    /// Appends text with the given style.
     pub fn span(mut self, s: &str, style: Style) -> Self {
         self.spans.push((s.to_owned(), style));
         self
     }
 
-    /// 명시적 스타일로 텍스트 추가. (`plain`의 스타일 버전.)
+    /// Appends text with an explicit style. (The styled version of `plain`.)
     pub fn plain_styled(mut self, s: &str, style: Style) -> Self {
         self.spans.push((s.to_owned(), style));
         self
     }
 
-    /// stdout 이 TTY인지 자동 감지해서 출력.
+    /// Prints, auto-detecting whether stdout is a TTY.
     pub fn print(&self) {
         print!("{}", self.render(stdout_is_styled()));
     }
 
-    /// 텍스트를 `String`으로 렌더링.
+    /// Renders the text as a `String`.
     ///
-    /// `styled = true`이면 ANSI 이스케이프 시퀀스 포함.
+    /// When `styled = true`, includes ANSI escape sequences.
     pub fn render(&self, styled: bool) -> String {
         let mut buf = String::new();
         for (text, style) in &self.spans {

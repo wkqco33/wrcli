@@ -1,4 +1,4 @@
-//! 위치 인자 수집 및 ArgValidator 통합 테스트.
+//! Integration tests for positional argument collection and ArgValidator.
 
 mod common;
 use common::args;

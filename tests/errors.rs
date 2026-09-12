@@ -1,4 +1,4 @@
-//! 에러 핸들링 및 help/version 스모크 테스트.
+//! Error handling and help/version smoke tests.
 
 mod common;
 use common::args;
@@ -86,7 +86,7 @@ fn version_flag() {
 
 #[test]
 fn help_flag_wins_over_unrecognized_leading_token() {
-    // 인식 불가 토큰이 --help보다 먼저 와도 help가 출력되어야 함.
+    // Even when an unrecognized token precedes --help, help must still be printed.
     Command::new("app")
         .subcommand(Command::new("sub").on_run(|_| {}))
         .execute_with(args("ghost --help"))

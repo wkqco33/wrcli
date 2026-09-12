@@ -56,7 +56,7 @@ fn documented_example_matches_render() {
 
 #[test]
 fn draw_and_finish_are_safe_without_tty() {
-    // 테스트 stdout은 TTY가 아니다: draw는 아무것도 쓰지 않고, finish는 한 줄만 출력한다.
+    // The test stdout is not a TTY: draw writes nothing, and finish prints a single line.
     let p = Progress::new(10).progress(3).width(10);
     p.draw();
     p.finish();

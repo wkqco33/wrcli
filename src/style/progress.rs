@@ -1,9 +1,9 @@
 use super::{Color, Style, stdout_is_styled, stdout_is_terminal};
 use std::io::Write;
 
-/// 터미널 진행률 표시줄.
+/// Terminal progress bar.
 ///
-/// rich 라이브러리의 `Progress`/`ProgressBar`에서 영감을 받은 단순한 비차단 렌더링.
+/// Simple, non-blocking rendering inspired by the rich library's `Progress`/`ProgressBar`.
 ///
 /// # Example
 ///
@@ -36,43 +36,43 @@ impl Progress {
         }
     }
 
-    /// 진행률(0..total) 설정.
+    /// Sets the progress (0..total).
     pub fn progress(mut self, current: u64) -> Self {
         self.current = current as f64;
         self
     }
 
-    /// 표시줄 너비 (기본 30).
+    /// Bar width (default 30).
     pub fn width(mut self, w: usize) -> Self {
         self.width = w;
         self
     }
 
-    /// 표시줄 앞에 붙는 라벨.
+    /// Label placed before the bar.
     pub fn label(mut self, label: &str) -> Self {
         self.label = label.to_owned();
         self
     }
 
-    /// 채워진 부분의 스타일 (기본: 녹색).
+    /// Style of the filled portion (default: green).
     pub fn bar_style(mut self, s: Style) -> Self {
         self.bar_style = s;
         self
     }
 
-    /// 채워진 문자 (기본 `#`).
+    /// Filled character (default `#`).
     pub fn filled_char(mut self, c: char) -> Self {
         self.filled = c;
         self
     }
 
-    /// 빈 문자 (기본 `-`).
+    /// Empty character (default `-`).
     pub fn empty_char(mut self, c: char) -> Self {
         self.empty = c;
         self
     }
 
-    /// 진행률을 `String`으로 렌더링.
+    /// Renders the progress bar as a `String`.
     pub fn render(&self, styled: bool) -> String {
         let ratio = if self.total <= 0.0 {
             0.0
@@ -98,10 +98,10 @@ impl Progress {
         }
     }
 
-    /// 진행률을 그린다.
+    /// Draws the progress bar.
     ///
-    /// TTY면 현재 줄을 덮어쓰고(`\r`), 파이프·CI 로그에서는 아무것도 출력하지 않는다
-    /// (clig.dev: 비TTY에서는 애니메이션 금지).
+    /// On a TTY it overwrites the current line (`\r`), while on pipes and CI logs
+    /// it prints nothing (clig.dev: no animation on a non-TTY).
     pub fn draw(&self) {
         if stdout_is_terminal() {
             print!("\r{}", self.render(stdout_is_styled()));
@@ -109,9 +109,9 @@ impl Progress {
         }
     }
 
-    /// 진행률을 마무리한다.
+    /// Finishes the progress bar.
     ///
-    /// TTY면 현재 줄을 완성하고, 비TTY면 최종 상태를 한 줄로 출력한다.
+    /// On a TTY it completes the current line; on a non-TTY it prints the final state on one line.
     pub fn finish(&self) {
         if stdout_is_terminal() {
             println!("\r{}", self.render(stdout_is_styled()));

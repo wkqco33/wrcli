@@ -26,10 +26,10 @@ impl HelpStyles {
     }
 }
 
-/// 커맨드 하나의 도움말을 stdout에 출력한다.
+/// Print the help for a single command to stdout.
 ///
-/// `flags`는 상속된 persistent 플래그가 병합된 FlagSet일 수 있고,
-/// `support_url`/`docs_url`은 상위 커맨드에서 상속된 유효 값이다.
+/// `flags` may be a FlagSet with inherited persistent flags merged in, and
+/// `support_url`/`docs_url` are the effective values inherited from ancestor commands.
 pub fn print_help(
     cmd: &Command,
     flags: &FlagSet,
@@ -58,7 +58,7 @@ pub fn print_help(
     }
 
     // ── Examples ───────────────────────────────────────────────────────────
-    // clig.dev: 사용자는 다른 문서보다 예제를 먼저 본다.
+    // clig.dev: users look at examples before any other documentation.
     if !cmd.examples.is_empty() {
         println!();
         println!("{}", s.section.apply("Examples:", s.styled));
@@ -177,7 +177,7 @@ pub fn print_help(
     }
 
     // ── Support / Documentation ──────────────────────────────────────────
-    // clig.dev: 피드백 경로와 웹 문서 링크를 도움말에 포함한다.
+    // clig.dev: include feedback channels and web documentation links in help.
     if support_url.is_some() || docs_url.is_some() {
         println!();
         if let Some(url) = support_url {

@@ -29,8 +29,26 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 - `gen_completion`을 통한 bash, zsh, fish 자동완성 생성.
 - `Color`, `Style`, `Text`, `Table`, `Panel`, `Rule`, `Tree`, `Progress`를 통한 터미널 스타일링 및 렌더링.
 
+### clig.dev(Command Line Interface Guidelines) 대응 (0.4.0)
+
+- 내장 `help` 서브커맨드(`app help`, `app help sub [subsub]`). 사용자가 `help`를 등록하면 비활성화.
+- help 예제/지원/문서 링크: `example`, `support_url`, `docs_url`(`{command}` 치환, 하위 상속).
+- 러너 없는 커맨드 정책: 서브커맨드만 있는 부모는 help + 종료 코드 0, `help_on_missing_runner()`로 리프도 opt-in.
+- 표준 플래그 `standard_flags()`: `-q`/`-f`/`--no-input`/`--no-color`/`--plain`/`--json`/`--color`/`--confirm`.
+- 출력 포맷: `OutputFormat`, `CommandContext::output_format`/`is_quiet`/`is_force`/`no_input`/`is_plain`/`is_json`, `Table::render_plain()`.
+- 대화형 입력: `CommandContext::confirm`/`confirm_severe`/`prompt_password`/`is_interactive`,
+  `InteractiveInputRequired`/`ConfirmationFailed` 에러.
+- 민감 플래그 `Flag::sensitive()`, 선택적 값 `Flag::optional_value()`(`none` = 값 없음).
+- `wrcli::io`: `open_reader`/`open_writer`/`read_to_string` — `-`는 stdin/stdout.
+- 색상 정책: `ColorChoice`, `set_color_choice`/`color_choice`/`reset_color_choice`, `set_no_color_env`,
+  `ColorEnv`/`should_use_color`, `stdout_is_terminal`/`stdin_is_terminal`,
+  `FORCE_COLOR`/`NO_COLOR`/`TERM=dumb`/`*_NO_COLOR`.
+- 페이저 `style::pager::page`, 비TTY 안전 `Progress::draw()`/`finish()`.
+- `signal` 피처: `Command::interrupt_message`, `wrcli::signal`(Ctrl-C → 메시지 + 종료 코드 130).
+- `Command::bug_report_url`.
+
 기능을 변경하거나 문서화할 때는 구현과 함께 관련 통합 테스트 및
-`README.md`/`docs/GUIDE.md`/`docs/STYLE.md` 문서, `CHANGELOG.md`를 갱신하세요.
+`README.md`/`docs/GUIDE.md`/`docs/STYLE.md`(각 `.ko.md` 한국어판), `CHANGELOG.md`(`CHANGELOG.ko.md`)를 갱신하세요.
 
 ## 양보할 수 없는 워크플로: TDD(테스트 주도 개발)
 
@@ -54,7 +72,11 @@ Rust CLI 프레임워크 라이브러리(cobra/viper에서 영감을 받음). �
 
 사용자 대상 기능에는 `tests/` 아래의 **통합 테스트**를 우선 사용하세요. 도메인별로 묶습니다:
 `flags.rs`, `args.rs`, `config.rs`, `errors.rs`, `lifecycle.rs`, `subcommand.rs`,
-`completion.rs`, `style_*.rs`.
+`completion.rs`, `help.rs`, `interactive.rs`, `io.rs`, `sensitive.rs`, `standard_flags.rs`,
+`style_*.rs`, `signal.rs`.
+
+`signal.rs`는 `#![cfg(all(unix, feature = "signal"))]`로 게이트되고, `tests/binary.rs`는
+실제 프로세스의 stdout/stderr/exit code를 검증합니다.
 
 ### 테스트 헬퍼 (`tests/common/mod.rs`)
 
@@ -102,12 +124,15 @@ assert!(matches!(err, WrCliError::MissingRequiredFlag(n) if n == "name"));
 ### 테스트 실행
 
 ```sh
-cargo test                      # 기본 피처
-cargo test --all-features       # yaml-config 포함
-cargo test --test flags          # 단일 통합 파일
-cargo test --test completion     # completion API 테스트
-cargo test --test style_progress # 스타일링 통합 파일 하나
-cargo test -- --test-threads=1   # 관련 없는 전역 상태 경합을 진단할 때만
+cargo test                            # 기본 피처
+cargo test --all-features             # 모든 피처 (signal 포함)
+cargo test --no-default-features      # 설정 포맷 백엔드 없이
+cargo test --test help                # help 서브커맨드 / 예제 / 지원 링크
+cargo test --test interactive         # 확인 프롬프트의 비TTY 경로
+cargo test --test flags               # 단일 통합 파일
+cargo test --test completion          # completion API 테스트
+cargo test --test style_progress      # 스타일링 통합 파일 하나
+cargo test -- --test-threads=1        # 관련 없는 전역 상태 경합을 진단할 때만
 ```
 
 ## 완료 전 검증 (필수)
@@ -144,15 +169,60 @@ cargo fmt -- --check
   `#[cfg(feature = ...)]`로 감싸고 `--all-features`로 테스트해야 합니다.
 - **요청받지 않는 한 코드에 주석을 추가하지 마세요.** 공개 API의 문서(`///`)는 환영합니다.
 
+### clig.dev CLI UX 규칙 (필수)
+
+사용자에게 보이는 동작을 바꿀 때는 다음 규약을 따릅니다. 위반은 리뷰에서 반려 대상입니다.
+구현된 판정 로직을 재사용하고 새로 만들지 마세요.
+
+- **출력 스트림**: 주 출력만 stdout, 로그·경고·정보·에러는 stderr로 보냅니다.
+  `style::print_warning`/`print_info`도 stderr를 씁니다.
+- **색상 규칙**: 색상 판정은 `style::should_use_color`/`ColorEnv` 한 곳을 통과시킵니다.
+  우선순위는 전역 override(`--no-color`, `--color=<when>`) → `FORCE_COLOR` → `NO_COLOR`(비어 있지
+  않을 때만) → `TERM=dumb` → 앱 전용 `*_NO_COLOR` → TTY입니다. 새 렌더러는
+  `stdout_is_styled()`/`stderr_is_styled()`를 쓰고, 색상과 무관한 TTY 판정에는
+  `stdout_is_terminal()`/`stdin_is_terminal()`을 씁니다.
+- **비TTY 안전**: 파이프/CI에서는 애니메이션(`\r`)이나 페이저를 쓰지 않습니다
+  (`Progress::draw()`/`finish()`, `style::pager::page`가 이 동작을 구현합니다).
+- **대화형 입력**: 프롬프트 전에 `stdin_is_terminal()`과 `--no-input`을 확인하고, 비TTY면
+  hang하지 말고 `InteractiveInputRequired`로 대신 쓸 플래그를 안내합니다. 위험한 작업은
+  `confirm()`/`confirm_severe()`를 쓰며 `--force`/`--confirm=<name>` 스크립트 경로를 항상 제공합니다.
+  비밀번호는 `prompt_password()`처럼 echo를 끄고, 값이 echo되지 않는 경로를 우회하지 않습니다.
+- **help 규약**: `-h`/`--help`의 의미를 바꾸지 않습니다(argv 어디에 있어도 help). 예제는
+  Usage 다음에 둡니다. help는 stdout, 사용법 오류 안내는 stderr입니다.
+- **러너 없는 커맨드**: 서브커맨드를 가진 부모는 help + 종료 코드 0을 유지합니다.
+  `CommandHasNoRunner`는 서브커맨드도 러너도 없는 리프 전용입니다.
+- **표준 플래그**: 관례 이름(`-q/--quiet`, `-f/--force`, `--json`, `--plain`, `--no-input`,
+  `--no-color`, `-o/--output`, `-n/--dry-run`)을 다른 의미로 재사용하지 않습니다.
+  번들 등록은 `standard_flags()`를 씁니다.
+- **기계 판독 출력**: 사람용 출력은 `--plain`(`Table::render_plain()`, 한 줄/레코드)과 `--json`으로
+  우회 가능해야 하며, 둘은 상호 배타로 검증합니다.
+- **비밀**: 비밀 값을 도움말 기본값·에러 메시지·로그에 노출하지 않습니다. 플래그로 받아야 하면
+  `Flag::sensitive()`를 붙이고, 파일이나 stdin 입력을 기본으로 권장합니다.
+- **종료 코드**: 사용법 오류 2, 그 외 1 — `WrCliError::exit_code()`가 기준입니다.
+  새 에러 변형은 `is_usage_error()` 분류를 함께 갱신합니다.
+- **하위호환**: 기존 플래그/서브커맨드/출력 형식을 제거·변경하지 않습니다. 먼저 `deprecated()`로
+  경고하고, 서브커맨드 접두 약어를 암묵적으로 허용하지 않습니다(정확 매칭만).
+- **시그널**: `signal` 피처 코드는 async-signal-safe(`libc::write`, `libc::_exit`)만 쓰고
+  핸들러에 정리(clean-up) 작업을 넣지 않습니다.
+
 ## 문서 구성
 
-- `README.md` — 저장소 루트에 유지합니다(crates.io/배포용).
-- `docs/GUIDE.md` — 상세 사용 레퍼런스.
-- `docs/STYLE.md` — 터미널 스타일링 가이드.
-- `CHANGELOG.md` — 릴리스별 변경 이력 (Keep a Changelog 형식).
+사용자 대상 문서는 **영문이 정본**입니다(crates.io/docs.rs 사용자는 대부분 비한국어권).
+한국어판은 파일명 뒤에 `.ko.md`를 붙여 별도로 유지합니다.
 
-가이드 성격의 문서는 `docs/`에 두고, 상호 링크는 저장소 루트 기준 상대 경로로 유지하세요.
-사용자에게 보이는 변경은 `CHANGELOG.md`의 `Unreleased`에 추가하세요.
+| 영문(정본) | 한국어 | 용도 |
+| --- | --- | --- |
+| `README.md` | `README.ko.md` | 저장소 루트·crates.io (`Cargo.toml` `readme`가 가리킴) |
+| `docs/GUIDE.md` | `docs/GUIDE.ko.md` | 상세 사용 레퍼런스 |
+| `docs/STYLE.md` | `docs/STYLE.ko.md` | 터미널 스타일링 가이드 |
+| `CHANGELOG.md` | `CHANGELOG.ko.md` | 릴리스별 변경 이력 (Keep a Changelog) |
+
+- 각 문서 상단의 언어 전환 줄(`[English](X.md) | [한국어](X.ko.md)`)을 유지하세요.
+- **문서 쌍은 항상 함께 갱신**합니다. 영문만 고치고 `.ko.md`를 방치하지 마세요.
+- 링크 방향: 영문판은 `.md`를, 한국어판은 `.ko.md`를 가리킵니다.
+- `AGENTS.md`는 저장소 내부용이므로 한국어를 유지하며 배포 패키지에서 제외됩니다(`Cargo.toml` `exclude`).
+- 가이드 성격의 문서는 `docs/`에 두고, 상호 링크는 저장소 루트 기준 상대 경로로 유지하세요.
+- 사용자에게 보이는 변경은 `CHANGELOG.md`와 `CHANGELOG.ko.md`의 `Unreleased`에 함께 추가하세요.
 
 ## 커밋 스타일
 

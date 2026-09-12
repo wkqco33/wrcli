@@ -1,10 +1,10 @@
 use super::ConfigValue;
 use std::collections::BTreeMap;
 
-/// 평탄한 점 표기 키를 재구성한 중첩 설정 트리.
+/// Nested settings tree rebuilt from flat dot-notation keys.
 pub type SettingsMap = BTreeMap<String, SettingsEntry>;
 
-/// 중첩 트리의 노드: 리프 값 또는 하위 맵.
+/// A node in the nested tree: a leaf value or a sub-map.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SettingsEntry {
     Value(ConfigValue),
@@ -27,7 +27,7 @@ impl SettingsEntry {
     }
 }
 
-/// `"a.b.c"` 형태의 평탄 키들을 중첩 트리로 재구성.
+/// Rebuilds flat keys of the form `"a.b.c"` into a nested tree.
 pub(crate) fn build_settings(
     entries: impl IntoIterator<Item = (String, ConfigValue)>,
 ) -> SettingsMap {

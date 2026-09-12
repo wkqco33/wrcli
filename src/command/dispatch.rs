@@ -6,14 +6,14 @@ use crate::error::{Result, WrCliError};
 use crate::flag::{Flag, FlagSet, FlagValue};
 use crate::style::{ColorChoice, reset_color_choice, set_color_choice};
 
-/// 값을 요구하는(bool이 아닌) 플래그인지 여부.
+/// Whether the flag takes a value (i.e. is not a bool).
 pub(crate) fn takes_value(default: &FlagValue) -> bool {
     !matches!(default, FlagValue::Bool(_))
 }
 
-/// `--no-color` / `--color=<when>`을 원시 argv에서 스캔한다.
+/// Scan the raw argv for `--no-color` / `--color=<when>`.
 ///
-/// 도움말 자체도 색상 판정을 하므로 플래그 파싱·서브커맨드 라우팅 전에 적용한다.
+/// Help itself also decides on color, so apply this before flag parsing and subcommand routing.
 fn scan_color_flags(args: &[String]) -> Option<ColorChoice> {
     let mut choice = None;
     for (i, a) in args.iter().enumerate() {
@@ -38,10 +38,10 @@ fn parse_color_choice(value: &str) -> ColorChoice {
     }
 }
 
-/// 수집된 플래그 제약 그룹을 리프 커맨드의 실제 입력에 대해 검증.
+/// Validate the collected flag constraint groups against the leaf command's actual input.
 ///
-/// 그룹의 플래그 중 리프 FlagSet에 등록된 것이 하나도 없으면(예: 부모 로컬 플래그
-/// 제약이 서브커맨드 실행 중 수집된 경우) 검증을 건너뛴다.
+/// Skip validation when none of the group's flags are registered in the leaf FlagSet
+/// (e.g. when a parent local flag constraint was collected while running a subcommand).
 fn validate_flag_groups(groups: &[FlagGroup], flags: &FlagSet) -> Result<()> {
     let registered = |names: &[String]| names.iter().any(|n| flags.get_flag(n).is_some());
     for group in groups {
@@ -88,12 +88,13 @@ fn validate_flag_groups(groups: &[FlagGroup], flags: &FlagSet) -> Result<()> {
     Ok(())
 }
 
-/// 서브커맨드 후보 또는 미인식 위치 인자로 쓰일 수 있는 첫 토큰의 인덱스를 찾는다.
+/// Find the index of the first token that can serve as a subcommand candidate or an
+/// unrecognized positional argument.
 ///
-/// `flags.parse()`를 실제로 호출하지 않고도 값을 소비하는 플래그(`--name value`,
-/// `-c value`)의 값 토큰을 건너뛰어, 그 값이 우연히 서브커맨드 이름과 같아도
-/// 서브커맨드로 오인하지 않도록 한다. `--` sentinel을 만나면 그 이후는 전부
-/// 리터럴 위치 인자이므로 후보 탐색을 중단한다.
+/// Skip value tokens of value-consuming flags (`--name value`, `-c value`) without
+/// actually calling `flags.parse()`, so a value that happens to equal a subcommand
+/// name is not mistaken for a subcommand. On encountering the `--` sentinel, stop
+/// searching for a candidate because everything after it is a literal positional arg.
 fn find_positional_candidate(args: &[String], flags: &FlagSet) -> Option<usize> {
     let mut i = 0;
     while i < args.len() {
@@ -129,19 +130,19 @@ fn find_positional_candidate(args: &[String], flags: &FlagSet) -> Option<usize> 
 }
 
 impl Command {
-    /// 진입점: `std::env::args()`(`argv[0]` 제외)를 파싱하고 실행.
+    /// Entry point: parse `std::env::args()` (excluding `argv[0]`) and run.
     pub fn execute(self) -> Result<()> {
         let args: Vec<String> = std::env::args().skip(1).collect();
         self.execute_with(args)
     }
 
-    /// 테스트용 변형: 주어진 인자 목록을 파싱하고 실행.
+    /// Test variant: parse the given argument list and run.
     pub fn execute_with(mut self, args: Vec<String>) -> Result<()> {
         #[cfg(feature = "signal")]
         if let Some(msg) = self.interrupt_message {
             crate::signal::install(msg);
         }
-        // `--no-color`/`--color`는 도움말 렌더링 전에 반영되어야 하므로 원시 argv를 먼저 훑는다.
+        // `--no-color`/`--color` must take effect before help rendering, so scan the raw argv first.
         let color = scan_color_flags(&args);
         if let Some(choice) = color {
             set_color_choice(choice);
@@ -165,10 +166,10 @@ impl Command {
         result
     }
 
-    /// 실행 후 오류가 나면 stderr에 출력하고 프로세스를 종료.
+    /// If an error occurs during execution, print it to stderr and exit the process.
     ///
-    /// 성공하면 종료 코드 0, 사용법 오류는 2, 그 외는 1로 종료한다.
-    /// 테스트에서 호출하면 테스트 프로세스가 종료되므로 `execute()`를 사용할 것.
+    /// On success exits with code 0, on usage errors with 2, and with 1 otherwise.
+    /// Calling this in a test terminates the test process, so use `execute()` instead.
     pub fn execute_or_exit(self) -> ! {
         let bug_report = self.bug_report_url.clone();
         match self.execute() {
@@ -197,7 +198,7 @@ impl Command {
     ) -> Result<()> {
         command_path.push(self.name.clone());
 
-        // 내장 `help` 서브커맨드: 사용자가 `help`를 직접 등록하지 않았을 때만 동작한다.
+        // Built-in `help` subcommand: active only when the user has not registered `help` themselves.
         if !self.has_subcommand_named("help")
             && let Some(idx) = find_positional_candidate(&args, &self.flags)
             && args[idx] == "help"
@@ -229,12 +230,12 @@ impl Command {
             pre_chain.push(f);
         }
         if let Some(f) = self.persistent_post_run.take() {
-            // push 후 역방향 순회로 리프→루트 순서 유지 (insert(0) 대비 O(1))
+            // Reverse iteration after push preserves leaf-to-root order (O(1) versus insert(0))
             post_chain.push(f);
         }
 
-        // 서브커맨드 라우팅을 먼저 시도해야 `app serve --help`가 serve의 help를 출력함.
-        // 값을 소비하는 플래그의 값 토큰은 건너뛰고 첫 번째 진짜 위치 토큰을 후보로 삼는다.
+        // Try subcommand routing first so that `app serve --help` prints serve's help.
+        // Skip the value tokens of value-consuming flags and take the first true positional token as the candidate.
         let candidate = find_positional_candidate(&args, &self.flags);
         let subcommand_pos = candidate.and_then(|idx| {
             let name = args[idx].as_str();
@@ -244,9 +245,9 @@ impl Command {
                 .map(|pos| (idx, pos))
         });
 
-        // 메타 플래그는 위치와 무관하게 전체를 스캔해야 `app unknown-sub --help`에서도
-        // help가 우선한다. 서브커맨드 앞에 오는 부모 로컬 플래그도 이 경우엔 소비하지 않고
-        // 그대로 리프로 넘겨 리프가 help/version을 처리하게 한다.
+        // Meta flags must be scanned across the whole argv regardless of position so help
+        // wins even for `app unknown-sub --help`. Parent local flags before the subcommand are
+        // not consumed here either; they are passed through so the leaf handles help/version.
         let found_help = args.iter().any(|a| a == "--help" || a == "-h");
         let found_version = args.iter().any(|a| a == "--version" || a == "-V");
         let meta = found_help || found_version;
@@ -255,15 +256,15 @@ impl Command {
             args.remove(arg_idx);
             let mut child = self.subcommands.remove(cmd_pos);
             log::debug!(
-                "서브커맨드 라우팅: {} -> {}",
+                "subcommand routing: {} -> {}",
                 command_path.join(" "),
                 child.name
             );
-            // persistent 플래그를 하위로 전파 — 이미 있는 경우엔 클론 없이 건너뜀
+            // Propagate persistent flags to the child — if already present, skip without cloning
             for flag in self.flags.persistent_flags() {
                 child.flags.add_inherited(flag);
             }
-            // 문서/지원 링크는 하위 커맨드가 직접 정의하지 않으면 상속된다.
+            // Docs/support links are inherited unless the subcommand defines its own.
             if child.support_url.is_none() {
                 child.support_url = self.support_url.clone();
             }
@@ -275,8 +276,8 @@ impl Command {
                 return child.dispatch(args, config, pre_chain, post_chain, command_path, groups);
             }
 
-            // 서브커맨드 앞의 부모 플래그(로컬 포함)를 부모 FlagSet으로 소비하고,
-            // 그 값을 하위로 넘겨 리프 컨텍스트에서도 읽을 수 있게 한다.
+            // Consume parent flags (including local ones) that precede the subcommand with the
+            // parent FlagSet, and pass their values down so the leaf context can read them too.
             let child_args = args.split_off(arg_idx);
             let _ = self.flags.parse_partial(args)?;
             child.flags.inherit_values(&self.flags);
@@ -306,7 +307,7 @@ impl Command {
             return Ok(());
         }
 
-        // 등록된 서브커맨드가 있는데 인식 불가 토큰이 오면 명확한 에러 반환
+        // With registered subcommands present, return a clear error for an unrecognized token
         if !self.subcommands.is_empty()
             && let Some(idx) = candidate
         {
@@ -315,7 +316,7 @@ impl Command {
             return Err(self.unknown_subcommand_error(&name, &self.name));
         }
 
-        // ── 리프 커맨드 ──────────────────────────────────────────────────────
+        // ── Leaf command ──────────────────────────────────────────────────────
 
         let positional = self.flags.parse(args)?;
         validate_flag_groups(groups, &self.flags)?;
@@ -324,10 +325,10 @@ impl Command {
             validator(&positional)?;
         }
 
-        // 명시적으로 설정되지 않은 플래그는 설정 저장소의 값으로 시드 (config → flag).
+        // Seed flags not set explicitly with values from the config store (config → flag).
         self.flags.seed_from_config(config);
 
-        // 사용자가 명시적으로 입력한 플래그만 Config 레이어 4로 바인딩
+        // Bind only flags explicitly entered by the user to Config layer 4
         for (name, fv) in self.flags.values_iter() {
             config.bind_flag_value(name, crate::config::ConfigValue::from(fv));
         }
@@ -340,7 +341,7 @@ impl Command {
             config,
         };
 
-        log::trace!("라이프사이클 훅 실행 시작: {}", command_path.join(" "));
+        log::trace!("lifecycle hooks start: {}", command_path.join(" "));
 
         if let Some(msg) = &self.deprecated {
             eprintln!("Command \"{}\" is deprecated: {}", self.name, msg);
@@ -358,7 +359,7 @@ impl Command {
         } else if let Some(ref f) = self.run {
             f(&ctx);
         } else {
-            // 서브커맨드만 가진 상위 커맨드는 도움말을 보여주고 성공으로 끝낸다 (Cobra 동작).
+            // A parent command with only subcommands shows help and finishes successfully (Cobra behavior).
             let has_visible_subcommands = self.subcommands.iter().any(|c| !c.hidden);
             if has_visible_subcommands || self.help_on_missing_runner {
                 help::print_help(
@@ -381,15 +382,15 @@ impl Command {
             f(&ctx);
         }
 
-        log::trace!("라이프사이클 훅 실행 완료: {}", command_path.join(" "));
+        log::trace!("lifecycle hooks complete: {}", command_path.join(" "));
 
         Ok(())
     }
 
-    /// 내장 `help` 서브커맨드 처리: `target` 경로의 커맨드 도움말을 출력한다.
+    /// Handle the built-in `help` subcommand: print the help for the command at path `target`.
     ///
-    /// 경로 중간에 상위 커맨드의 persistent 플래그가 있으면 상속된 것으로 표시해
-    /// `Global Flags:` 섹션에 노출한다.
+    /// If a persistent flag of an ancestor command appears along the path, mark it as inherited
+    /// and expose it in the `Global Flags:` section.
     fn dispatch_help(&self, target: &[String], command_path: &[String]) -> Result<()> {
         let mut cmd = self;
         let mut full_path = command_path.to_vec();

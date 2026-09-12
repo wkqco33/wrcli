@@ -1,7 +1,7 @@
-//! clig.dev Interactivity 규칙 테스트.
+//! Tests for the clig.dev Interactivity rules.
 //!
-//! 테스트 프로세스의 stdin은 TTY가 아니므로, 프롬프트 없이 명확한 오류를 내는
-//! 경로가 결정적으로 검증된다.
+//! The test process's stdin is not a TTY, so the path that emits a clear error
+//! without prompting is deterministically verified.
 
 mod common;
 

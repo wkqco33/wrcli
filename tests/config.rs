@@ -1,4 +1,4 @@
-//! Config 설정 시스템 및 Flag↔Config 바인딩 통합 테스트.
+//! Integration tests for the Config system and Flag↔Config binding.
 
 mod common;
 use common::{EnvGuard, args, tempdir};
@@ -314,8 +314,9 @@ fn config_auto_discovery_default_paths() {
     let mut f = std::fs::File::create(cfg_dir.join("myapp.json")).unwrap();
     writeln!(f, r#"{{"host": "auto.example.com"}}"#).unwrap();
 
-    // XDG_CONFIG_HOME까지 임시 경로로 고정해야 외부 CI 환경(기본 XDG 설정)과
-    // 무관하게 `~/.config/<name>` 탐지를 결정적으로 검증할 수 있다.
+    // XDG_CONFIG_HOME must also be pinned to the temp path so that discovery of
+    // `~/.config/<name>` is verified deterministically, independent of the external CI environment
+    // (default XDG settings).
     let _g = EnvGuard::set_many(&[
         ("HOME", home.path().to_str().unwrap()),
         (
@@ -395,7 +396,7 @@ fn config_yaml_file() {
     assert_eq!(*val.lock().unwrap(), "example.com:4321");
 }
 
-// ── Phase 1: set / is_set / alias / delimiter / env 옵션 ─────────────────────
+// ── Phase 1: set / is_set / alias / delimiter / env options ─────────────────────
 
 #[test]
 fn set_overrides_default_and_env() {
@@ -499,7 +500,7 @@ fn allow_empty_env_false_falls_back_to_default() {
     assert_eq!(cfg.get_string("val"), Some("fallback".to_owned()));
 }
 
-// ── Phase 1: 추가 getter ─────────────────────────────────────────────────────
+// ── Phase 1: additional getters ─────────────────────────────────────────────────────
 
 #[test]
 fn get_int64_and_uint() {
@@ -679,7 +680,7 @@ fn merge_config_map_adds_absent_keys() {
     assert_eq!(cfg.get_int("a"), Some(1));
 }
 
-// ── Phase 3: 신규 포맷 & 쓰기 ────────────────────────────────────────────────
+// ── Phase 3: new formats & writing ────────────────────────────────────────────────
 
 #[cfg(feature = "dotenv-config")]
 #[test]
@@ -909,7 +910,7 @@ fn watch_config_invokes_callback_on_change() {
     assert!(*hits.lock().unwrap() >= 1, "callback was not invoked");
 }
 
-// ── Flag is_set 정확성 & CommandContext getter 패리티 ────────────────────────
+// ── Flag is_set correctness & CommandContext getter parity ────────────────────────
 
 #[test]
 fn flag_is_set_false_when_seeded_from_config() {

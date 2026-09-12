@@ -4,15 +4,15 @@ use crate::flag::FlagSet;
 use std::io::{BufRead, Write};
 use std::time::{Duration, SystemTime};
 
-/// 출력 포맷. `--plain` / `--json` 표준 플래그에 대응한다.
+/// Output format. Corresponds to the `--plain` / `--json` standard flags.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputFormat {
-    /// 사람이 읽기 좋은 기본 출력.
+    /// Default human-readable output.
     #[default]
     Human,
-    /// 한 줄에 레코드 하나인 기계 친화적 출력 (`grep`/`awk`용).
+    /// Machine-friendly output with one record per line (for `grep`/`awk`).
     Plain,
-    /// JSON 출력.
+    /// JSON output.
     Json,
 }
 
@@ -123,32 +123,32 @@ impl<'a> CommandContext<'a> {
         self.command_path.last().map(String::as_str).unwrap_or("")
     }
 
-    /// `-q` / `--quiet` 지정 여부.
+    /// Whether `-q` / `--quiet` was specified.
     pub fn is_quiet(&self) -> bool {
         self.flags.get_bool("quiet").unwrap_or(false)
     }
 
-    /// `-f` / `--force` 지정 여부 (확인 프롬프트 생략).
+    /// Whether `-f` / `--force` was specified (skips confirmation prompts).
     pub fn is_force(&self) -> bool {
         self.flags.get_bool("force").unwrap_or(false)
     }
 
-    /// `--no-input` 지정 여부 (대화형 입력 금지).
+    /// Whether `--no-input` was specified (forbids interactive input).
     pub fn no_input(&self) -> bool {
         self.flags.get_bool("no-input").unwrap_or(false)
     }
 
-    /// `--plain` 지정 여부.
+    /// Whether `--plain` was specified.
     pub fn is_plain(&self) -> bool {
         self.flags.get_bool("plain").unwrap_or(false)
     }
 
-    /// `--json` 지정 여부.
+    /// Whether `--json` was specified.
     pub fn is_json(&self) -> bool {
         self.flags.get_bool("json").unwrap_or(false)
     }
 
-    /// `--plain` / `--json`에 따른 출력 포맷.
+    /// Output format derived from `--plain` / `--json`.
     pub fn output_format(&self) -> OutputFormat {
         if self.is_json() {
             OutputFormat::Json
@@ -159,15 +159,15 @@ impl<'a> CommandContext<'a> {
         }
     }
 
-    /// 대화형 프롬프트를 사용할 수 있는지 여부 (TTY이고 `--no-input`이 아님).
+    /// Whether interactive prompts can be used (a TTY and not `--no-input`).
     pub fn is_interactive(&self) -> bool {
         !self.no_input() && crate::style::stdin_is_terminal()
     }
 
-    /// 사용자에게 확인을 요청한다 (clig.dev: Confirm before doing anything dangerous).
+    /// Ask the user for confirmation (clig.dev: Confirm before doing anything dangerous).
     ///
-    /// - `--force`가 지정되면 프롬프트 없이 `true`.
-    /// - `--no-input`이거나 stdin이 TTY가 아니면 대신 쓸 플래그를 알려주며 오류를 낸다.
+    /// - If `--force` is specified, `true` without prompting.
+    /// - If `--no-input` is set or stdin is not a TTY, return an error suggesting an alternative flag.
     pub fn confirm(&self, message: &str) -> Result<bool> {
         if self.is_force() {
             return Ok(true);
@@ -176,7 +176,7 @@ impl<'a> CommandContext<'a> {
         ask_yes_no(message)
     }
 
-    /// 위험한(severe) 작업 확인. `--confirm="<expected>"` 또는 직접 입력이 일치해야 한다.
+    /// Confirm a severe (dangerous) action. `--confirm="<expected>"` or direct input must match.
     pub fn confirm_severe(&self, expected: &str) -> Result<bool> {
         let provided = self.flags.get_string("confirm").unwrap_or("");
         if !provided.is_empty() {
@@ -201,9 +201,9 @@ impl<'a> CommandContext<'a> {
         }
     }
 
-    /// 비밀번호를 echo 없이 입력받는다 (clig.dev: don't print it as the user types).
+    /// Read a password without echo (clig.dev: don't print it as the user types).
     ///
-    /// unix에서는 `stty -echo`로 가린다. 그 외 플랫폼에서는 echo를 끌 수 없다.
+    /// On unix it is hidden via `stty -echo`. On other platforms echo cannot be turned off.
     pub fn prompt_password(&self, message: &str) -> Result<String> {
         self.ensure_interactive("a credentials file or stdin")?;
         eprint!("{}", message);
@@ -217,7 +217,7 @@ impl<'a> CommandContext<'a> {
         result
     }
 
-    /// stdin이 TTY가 아니거나 `--no-input`이면 안내와 함께 오류를 반환한다.
+    /// If stdin is not a TTY or `--no-input` is set, return an error with guidance.
     fn ensure_interactive(&self, hint: &str) -> Result<()> {
         if self.no_input() || !crate::style::stdin_is_terminal() {
             return Err(WrCliError::InteractiveInputRequired {
@@ -227,13 +227,13 @@ impl<'a> CommandContext<'a> {
         Ok(())
     }
 
-    /// 플래그 값을 [`ConfigValue`]로 변환 (없으면 `None`).
+    /// Convert the flag value to [`ConfigValue`] (`None` if absent).
     fn flag_value(&self, key: &str) -> Option<ConfigValue> {
         self.flags.get(key).map(ConfigValue::from)
     }
 }
 
-/// stderr에 y/N 프롬프트를 출력하고 stdin 한 줄을 읽어 yes 여부를 반환.
+/// Print a y/N prompt to stderr, read one line from stdin, and return whether it was yes.
 fn ask_yes_no(message: &str) -> Result<bool> {
     eprint!("{} [y/N] ", message);
     let _ = std::io::stderr().flush();
@@ -244,14 +244,14 @@ fn ask_yes_no(message: &str) -> Result<bool> {
     ))
 }
 
-/// stdin에서 한 줄을 읽는다.
+/// Read a single line from stdin.
 fn read_line() -> Result<String> {
     let mut line = String::new();
     std::io::stdin().lock().read_line(&mut line)?;
     Ok(line)
 }
 
-/// 터미널 echo를 켜고 끈다 (unix).
+/// Enable or disable terminal echo (unix).
 #[cfg(unix)]
 fn set_terminal_echo(enable: bool) {
     let arg = if enable { "echo" } else { "-echo" };

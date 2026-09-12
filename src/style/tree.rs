@@ -1,8 +1,8 @@
 use super::{Color, Style, stdout_is_styled};
 
-/// 계층적 트리 구조를 Unicode 박스 문자로 렌더링.
+/// Renders a hierarchical tree structure with Unicode box characters.
 ///
-/// rich 라이브러리의 `Tree`에서 영감을 받음.
+/// Inspired by the rich library's `Tree`.
 ///
 /// # Example
 ///
@@ -32,26 +32,26 @@ impl Tree {
         }
     }
 
-    /// 이 노드의 레이블에 적용할 스타일 (기본값: 청록색).
+    /// Style applied to this node's label (default: cyan).
     pub fn style(mut self, s: Style) -> Self {
         self.style = s;
         self
     }
 
-    /// 자식 노드 추가.
+    /// Adds a child node.
     pub fn child(mut self, child: Tree) -> Self {
         self.children.push(child);
         self
     }
 
-    /// stdout 이 TTY인지 자동 감지해서 출력.
+    /// Prints, auto-detecting whether stdout is a TTY.
     pub fn print(&self) {
         print!("{}", self.render(stdout_is_styled()));
     }
 
-    /// 트리를 `String`으로 렌더링.
+    /// Renders the tree as a `String`.
     ///
-    /// `styled = true`이면 ANSI 이스케이프 시퀀스 포함.
+    /// When `styled = true`, includes ANSI escape sequences.
     pub fn render(&self, styled: bool) -> String {
         let mut buf = String::new();
         buf.push_str(&self.style.apply(&self.label, styled));
@@ -60,7 +60,7 @@ impl Tree {
         buf
     }
 
-    /// `prefix`는 조상 노드에서 내려온 들여쓰기 표시(수직선 포함).
+    /// `prefix` is the indentation marker inherited from ancestor nodes (including the vertical lines).
     fn render_children(&self, children: &[Tree], buf: &mut String, styled: bool, prefix: &str) {
         let child_count = children.len();
         for (i, child) in children.iter().enumerate() {

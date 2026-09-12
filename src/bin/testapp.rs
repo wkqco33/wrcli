@@ -145,7 +145,7 @@ fn main() {
     }
 }
 
-/// `signal` 피처가 켜져 있으면 Ctrl-C 핸들러를 함께 설치한다.
+/// Installs a Ctrl-C handler as well when the `signal` feature is enabled.
 #[cfg(feature = "signal")]
 fn with_signal(cmd: Command) -> Command {
     cmd.interrupt_message("interrupted by test\n")

@@ -1,6 +1,6 @@
 use super::{Color, Style, display_width, stdout_is_styled};
 
-/// 컬럼 텍스트 정렬.
+/// Column text alignment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Align {
     #[default]
@@ -9,7 +9,7 @@ pub enum Align {
     Right,
 }
 
-/// Unicode 박스 그리기 문자로 테두리를 표시하는 테이블.
+/// A table that draws borders with Unicode box-drawing characters.
 ///
 /// # Example
 ///
@@ -77,14 +77,14 @@ impl Table {
         self
     }
 
-    /// stdout 이 TTY인지 자동 감지해서 출력.
+    /// Prints, auto-detecting whether stdout is a TTY.
     pub fn print(&self) {
         print!("{}", self.render(stdout_is_styled()));
     }
 
-    /// 테이블을 `String`으로 렌더링.
+    /// Renders the table as a `String`.
     ///
-    /// `styled = true`이면 ANSI 이스케이프 시퀀스 포함.
+    /// When `styled = true`, includes ANSI escape sequences.
     pub fn render(&self, styled: bool) -> String {
         use std::fmt::Write as _;
 
@@ -96,7 +96,7 @@ impl Table {
             return String::new();
         }
 
-        // display_width 기준으로 폭을 계산해야 비-ASCII 문자에서도 정렬이 유지됨.
+        // Widths must be computed with display_width so alignment holds for non-ASCII characters.
         let mut widths = vec![0usize; col_count];
         for (i, h) in self.headers.iter().enumerate() {
             widths[i] = widths[i].max(display_width(h));
@@ -109,7 +109,7 @@ impl Table {
             }
         }
 
-        // 테두리 문자열은 한 번만 계산.
+        // Compute the border strings only once.
         let (top_line, header_sep_line, row_sep_line, bottom_line, plain_sep_line) = if self.border
         {
             let mut top = String::from("┌");
@@ -191,9 +191,9 @@ impl Table {
         buf
     }
 
-    /// `--plain`용 렌더링: 테두리·정렬 없이 한 줄에 레코드 하나 (탭 구분).
+    /// Rendering for `--plain`: one record per line (tab-separated), with no borders or alignment.
     ///
-    /// `grep`/`awk` 같은 도구로 그대로 파이프할 수 있다.
+    /// Can be piped directly into tools like `grep`/`awk`.
     pub fn render_plain(&self) -> String {
         use std::fmt::Write as _;
         let mut out = String::new();
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn non_ascii_cells_stay_aligned() {
-        // display_width 기준으로 모든 행의 테두리(│)가 같은 위치에 정렬되어야 함.
+        // With display_width, the border (│) of every row must align at the same position.
         let out = Table::new()
             .headers(["이름", "설명"])
             .row(["wrcli", "설명 텍스트"])

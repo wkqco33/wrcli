@@ -1,6 +1,6 @@
 use super::{Color, Style, display_width, stdout_is_styled};
 
-/// 선택적으로 중앙 제목이 있는 수평 구분선.
+/// A horizontal rule with an optional centered title.
 ///
 /// # Example
 ///
@@ -24,7 +24,7 @@ pub struct Rule {
 }
 
 impl Rule {
-    /// 기본 설정(80컬럼, `─` 문자)으로 새 Rule 생성.
+    /// Creates a new Rule with the default settings (80 columns, `─` character).
     pub fn new() -> Self {
         Rule {
             title: None,
@@ -60,12 +60,12 @@ impl Rule {
         self
     }
 
-    /// stdout 이 TTY인지 자동 감지해서 출력.
+    /// Prints, auto-detecting whether stdout is a TTY.
     pub fn print(&self) {
         println!("{}", self.render(stdout_is_styled()));
     }
 
-    /// 구분선을 `String`으로 렌더링.
+    /// Renders the rule as a `String`.
     pub fn render(&self, styled: bool) -> String {
         let ch = self.line_char.to_string();
         if let Some(ref title) = self.title {
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn title_centered() {
         let out = Rule::new().title("X").width(11).render(false);
-        // " X " 3자; 11 - 3 = 8 → 좌 4, 우 4
+        // " X " is 3 chars; 11 - 3 = 8 → 4 on the left, 4 on the right
         let expected = format!("{} X {}", "─".repeat(4), "─".repeat(4));
         assert_eq!(out, expected);
     }
