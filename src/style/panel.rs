@@ -1,6 +1,6 @@
-use super::{Color, Style, display_width, stdout_is_styled};
+use super::{Align, BoxStyle, Color, Style, display_width, stdout_is_styled};
 
-/// A panel that draws borders with Unicode box-drawing characters (with an optional title).
+/// A panel that draws borders with Unicode box-drawing characters (with an optional title and subtitle).
 ///
 /// # Example
 ///
@@ -18,10 +18,15 @@ use super::{Color, Style, display_width, stdout_is_styled};
 pub struct Panel {
     content: String,
     title: Option<String>,
+    subtitle: Option<String>,
     border_style: Style,
     title_style: Style,
+    subtitle_style: Style,
     padding: usize,
     width: Option<usize>,
+    box_style: BoxStyle,
+    content_align: Align,
+    subtitle_align: Align,
 }
 
 impl Panel {
@@ -29,15 +34,25 @@ impl Panel {
         Panel {
             content: content.to_owned(),
             title: None,
+            subtitle: None,
             border_style: Style::new().fg(Color::Cyan),
             title_style: Style::new().bold(),
+            subtitle_style: Style::new().bold(),
             padding: 1,
             width: None,
+            box_style: BoxStyle::Rounded,
+            content_align: Align::Left,
+            subtitle_align: Align::Right,
         }
     }
 
     pub fn title(mut self, t: &str) -> Self {
         self.title = Some(t.to_owned());
+        self
+    }
+
+    pub fn subtitle(mut self, s: &str) -> Self {
+        self.subtitle = Some(s.to_owned());
         self
     }
 
@@ -51,6 +66,11 @@ impl Panel {
         self
     }
 
+    pub fn subtitle_style(mut self, s: Style) -> Self {
+        self.subtitle_style = s;
+        self
+    }
+
     pub fn padding(mut self, p: usize) -> Self {
         self.padding = p;
         self
@@ -58,6 +78,21 @@ impl Panel {
 
     pub fn width(mut self, w: usize) -> Self {
         self.width = Some(w);
+        self
+    }
+
+    pub fn box_style(mut self, bs: BoxStyle) -> Self {
+        self.box_style = bs;
+        self
+    }
+
+    pub fn content_align(mut self, a: Align) -> Self {
+        self.content_align = a;
+        self
+    }
+
+    pub fn subtitle_align(mut self, a: Align) -> Self {
+        self.subtitle_align = a;
         self
     }
 
@@ -78,17 +113,28 @@ impl Panel {
             .as_deref()
             .map(|t| display_width(t) + 2 + 4)
             .unwrap_or(0);
+        let subtitle_min = self
+            .subtitle
+            .as_deref()
+            .map(|s| display_width(s) + 2 + 4)
+            .unwrap_or(0);
         let inner_width = self
             .width
-            .unwrap_or_else(|| content_width.max(title_min).max(20))
+            .unwrap_or_else(|| content_width.max(title_min).max(subtitle_min).max(20))
             .max(content_width)
-            .max(title_min);
+            .max(title_min)
+            .max(subtitle_min);
 
         let mut buf = String::new();
         let pad = self.padding;
+        let bs = self.box_style;
 
         let b = |s: &str| self.border_style.apply(s, styled);
         let t = |s: &str| self.title_style.apply(s, styled);
+        let sub = |s: &str| self.subtitle_style.apply(s, styled);
+
+        let h = bs.horizontal().to_string();
+        let v = bs.vertical().to_string();
 
         if let Some(ref title) = self.title {
             let title_part = format!(" {} ", title);
@@ -98,18 +144,18 @@ impl Panel {
                 dashes_needed.saturating_sub(left_dashes + display_width(&title_part));
             buf.push_str(&format!(
                 "{}{}{}{}{}",
-                b("╭"),
-                b(&"─".repeat(left_dashes)),
+                b(&bs.top_left().to_string()),
+                b(&h.repeat(left_dashes)),
                 t(&title_part),
-                b(&"─".repeat(right_dashes)),
-                b("╮"),
+                b(&h.repeat(right_dashes)),
+                b(&bs.top_right().to_string()),
             ));
         } else {
             buf.push_str(&format!(
                 "{}{}{}",
-                b("╭"),
-                b(&"─".repeat(inner_width + pad * 2)),
-                b("╮"),
+                b(&bs.top_left().to_string()),
+                b(&h.repeat(inner_width + pad * 2)),
+                b(&bs.top_right().to_string()),
             ));
         }
         buf.push('\n');
@@ -117,23 +163,57 @@ impl Panel {
         let padding_str = " ".repeat(pad);
         for line in &lines {
             let right_fill = inner_width.saturating_sub(display_width(line));
-            buf.push_str(&format!(
-                "{}{}{}{}{}",
-                b("│"),
-                padding_str,
-                line,
-                " ".repeat(right_fill + pad),
-                b("│"),
-            ));
+            let (pad_l, pad_r) = match self.content_align {
+                Align::Left => (padding_str.clone(), " ".repeat(right_fill + pad)),
+                Align::Right => (" ".repeat(right_fill + pad), padding_str.clone()),
+                Align::Center => {
+                    let l = right_fill / 2;
+                    let r = right_fill - l;
+                    (" ".repeat(l + pad), " ".repeat(r + pad))
+                }
+            };
+            buf.push_str(&format!("{}{}{}{}{}", b(&v), pad_l, line, pad_r, b(&v),));
             buf.push('\n');
         }
 
-        buf.push_str(&format!(
-            "{}{}{}",
-            b("╰"),
-            b(&"─".repeat(inner_width + pad * 2)),
-            b("╯"),
-        ));
+        if let Some(ref subtitle) = self.subtitle {
+            let sub_part = format!(" {} ", subtitle);
+            let dashes_needed = inner_width + pad * 2;
+            let sub_w = display_width(&sub_part);
+            let remaining = dashes_needed.saturating_sub(sub_w);
+            let (left_dashes, right_dashes) = match self.subtitle_align {
+                Align::Right => {
+                    let r = pad + 1;
+                    let l = remaining.saturating_sub(r);
+                    (l, r)
+                }
+                Align::Left => {
+                    let l = pad + 1;
+                    let r = remaining.saturating_sub(l);
+                    (l, r)
+                }
+                Align::Center => {
+                    let l = remaining / 2;
+                    let r = remaining - l;
+                    (l, r)
+                }
+            };
+            buf.push_str(&format!(
+                "{}{}{}{}{}",
+                b(&bs.bottom_left().to_string()),
+                b(&h.repeat(left_dashes)),
+                sub(&sub_part),
+                b(&h.repeat(right_dashes)),
+                b(&bs.bottom_right().to_string()),
+            ));
+        } else {
+            buf.push_str(&format!(
+                "{}{}{}",
+                b(&bs.bottom_left().to_string()),
+                b(&h.repeat(inner_width + pad * 2)),
+                b(&bs.bottom_right().to_string()),
+            ));
+        }
         buf.push('\n');
 
         buf

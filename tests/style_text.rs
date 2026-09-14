@@ -42,3 +42,23 @@ fn plain_with_style() {
     assert!(out.contains("\x1b["));
     assert!(out.contains("bold text"));
 }
+
+#[test]
+fn text_from_markup_plain() {
+    let t = Text::from_markup("[bold green]Success:[/] file [cyan]test.rs[/] created");
+    assert_eq!(t.render(false), "Success: file test.rs created");
+}
+
+#[test]
+fn text_from_markup_styled() {
+    let t = Text::from_markup("[bold red]error[/]");
+    let out = t.render(true);
+    assert!(out.contains("\x1b["));
+    assert!(out.contains("error"));
+}
+
+#[test]
+fn text_from_markup_escaped_brackets() {
+    let t = Text::from_markup("array[[0]] is [green]valid[/]");
+    assert_eq!(t.render(false), "array[0] is valid");
+}

@@ -1,6 +1,6 @@
-use super::{Color, Style, display_width, stdout_is_styled};
+use super::{Align, Color, Style, display_width, stdout_is_styled};
 
-/// A horizontal rule with an optional centered title.
+/// A horizontal rule with an optional title.
 ///
 /// # Example
 ///
@@ -21,6 +21,7 @@ pub struct Rule {
     title_style: Style,
     width: usize,
     line_char: char,
+    align: Align,
 }
 
 impl Rule {
@@ -32,6 +33,7 @@ impl Rule {
             title_style: Style::new(),
             width: 80,
             line_char: '─',
+            align: Align::Center,
         }
     }
 
@@ -60,6 +62,11 @@ impl Rule {
         self
     }
 
+    pub fn align(mut self, a: Align) -> Self {
+        self.align = a;
+        self
+    }
+
     /// Prints, auto-detecting whether stdout is a TTY.
     pub fn print(&self) {
         println!("{}", self.render(stdout_is_styled()));
@@ -71,8 +78,23 @@ impl Rule {
         if let Some(ref title) = self.title {
             let title_part = format!(" {} ", title);
             let remaining = self.width.saturating_sub(display_width(&title_part));
-            let left = remaining / 2;
-            let right = remaining - left;
+            let (left, right) = match self.align {
+                Align::Center => {
+                    let left = remaining / 2;
+                    let right = remaining - left;
+                    (left, right)
+                }
+                Align::Left => {
+                    let left = 2.min(remaining);
+                    let right = remaining - left;
+                    (left, right)
+                }
+                Align::Right => {
+                    let right = 2.min(remaining);
+                    let left = remaining - right;
+                    (left, right)
+                }
+            };
             format!(
                 "{}{}{}",
                 self.style.apply(&ch.repeat(left), styled),

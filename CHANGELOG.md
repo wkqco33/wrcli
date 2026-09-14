@@ -7,6 +7,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **New style components**:
+  - `BoxStyle` enum (`Square`, `Rounded`, `Double`, `Heavy`, `Ascii`, `Markdown`) for custom border characters.
+  - `KeyVal`: Aligned key-value pairs with customizable separator and styles.
+  - `Badge`: Status tags/badges with convenient presets (`success`, `error`, `warn`, `info`) and bracket customisation.
+  - `List`: Bullet (`•`, `-`, `→`) and `Numbered` list component with sublist nesting.
+  - `Spinner`: Non-blocking terminal activity indicator respecting clig.dev rules.
+  - `Text::from_markup`: Rich-inspired inline tag parser (e.g. `[bold green]...[/]`).
+- **Enhanced component options**:
+  - `Table`: Added `.box_style(BoxStyle)`, `.row_separator(bool)`, and `.border_style(Style)`.
+  - `Panel`: Added `.box_style(BoxStyle)`, `.content_align(Align)`, `.subtitle(&str)`, `.subtitle_style(Style)`, and `.subtitle_align(Align)`.
+  - `Rule`: Added `.align(Align)` for left/center/right title alignment.
+  - `Tree`: Added `.guide_style(Style)` and multi-line label support.
+
+### Fixed
+
+- `display_width`: Now strips ANSI escape sequences and properly accounts for CJK and emoji character widths (2 columns) when computing visible terminal width, preventing misaligned borders in `Table`, `Panel`, and `Rule` when formatted or mixed-script text is used.
+- `Table::border(false)`: Fixed issue where vertical line separators (`│`) were erroneously printed between columns and misaligned with plain separator dashes.
+- `Tree`: Fixed branch and guide lines incorrectly inheriting the root node's label style.
+
 ### Changed
 
 - Documentation is now English-first. `README.md`, `docs/GUIDE.md`, `docs/STYLE.md` and
@@ -15,6 +36,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `CHANGELOG.ko.md`.
 - All source comments (rustdoc and inline) and log messages are now in English.
   Korean string literals kept in tests are deliberate CJK display-width fixtures.
+
 
 ## [0.4.0] - 2026-09-12
 

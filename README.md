@@ -59,8 +59,9 @@ through a fluent builder API.
 - **SIGINT** — `signal` feature, `interrupt_message` (exit code 130)
 - **Bug report URL** — `bug_report_url`
 - **Completion script generation** (bash / zsh / fish)
-- Rich terminal styling: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`
+- Rich terminal styling: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`, `KeyVal`, `Badge`, `List`, `Spinner`
 - `execute_with()` — inject arguments directly for unit tests without real argv
+
 - Automatic `--help` / `--version`
 
 ---

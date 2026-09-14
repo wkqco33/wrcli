@@ -57,8 +57,9 @@ Go의 [cobra](https://github.com/spf13/cobra) + [viper](https://github.com/spf13
 - **SIGINT** — `signal` 피처, `interrupt_message` (종료 코드 130)
 - **버그 리포트 URL** — `bug_report_url`
 - **Completion 스크립트 생성** (bash / zsh / fish)
-- 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`
+- 풍부한 터미널 스타일링: `Style`, `Color`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`, `KeyVal`, `Badge`, `List`, `Spinner`
 - `execute_with()` — 실제 argv 없이 인수를 직접 주입해 단위 테스트 가능
+
 - `--help` / `--version` 자동 생성
 
 ---

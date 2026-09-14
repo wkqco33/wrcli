@@ -7,6 +7,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- **새로운 스타일 컴포넌트 추가**:
+  - `BoxStyle` 열거형 (`Square`, `Rounded`, `Double`, `Heavy`, `Ascii`, `Markdown` 테두리 문자 세트).
+  - `KeyVal`: 구분자 및 스타일 지정이 가능한 자동 정렬 키-값 뷰어.
+  - `Badge`: 주요 상태 프리셋(`success`, `error`, `warn`, `info`) 및 괄호 설정 가능한 상태 태그/뱃지.
+  - `List`: 중첩을 지원하는 글머리 기호(`•`, `-`, `→`) 및 번호 매기기 목록 컴포넌트.
+  - `Spinner`: clig.dev 규약을 준수하는 비블로킹 터미널 스피너 인디케이터.
+  - `Text::from_markup`: rich 스타일의 인라인 마크업 태그 파서 (예: `[bold green]...[/]`).
+- **기존 컴포넌트 옵션 확장**:
+  - `Table`: `.box_style(BoxStyle)`, `.row_separator(bool)`, `.border_style(Style)` 추가.
+  - `Panel`: `.box_style(BoxStyle)`, `.content_align(Align)`, `.subtitle(&str)`, `.subtitle_style(Style)`, `.subtitle_align(Align)` 추가.
+  - `Rule`: 좌측/중앙/우측 정렬을 위한 `.align(Align)` 추가.
+  - `Tree`: `.guide_style(Style)` 및 멀티라인 라벨 들여쓰기 지원 추가.
+
+### Fixed
+
+- `display_width`: 가시 터미널 너비 계산 시 ANSI 이스케이프 시퀀스를 제외하고 CJK 문자 및 이모지 폭(2칸)을 올바르게 반영하도록 개선하여 서식 텍스트 또는 한영/이모지 혼용 시 `Table`, `Panel`, `Rule` 테두리가 어긋나는 현상 해결.
+- `Table::border(false)`: 테두리 비활성화 시 열 사이에 세로선(`│`)이 잘못 출력되고 하이픈 구분선과 열 너비가 어긋나던 버그 수정.
+- `Tree`: 가지선과 들여쓰기 라인이 루트 노드의 라벨 스타일로 강제 적용되던 문제 수정.
+
 ### Changed
 
 - 문서를 영문 정본으로 전환했습니다. `README.md`, `docs/GUIDE.md`, `docs/STYLE.md`,
@@ -14,6 +35,7 @@
   `docs/STYLE.ko.md`, `CHANGELOG.ko.md`로 나란히 유지합니다.
 - 소스 주석(rustdoc·인라인)과 로그 메시지를 모두 영문으로 바꿨습니다.
   테스트에 남아 있는 한국어 문자열은 CJK 표시폭 테스트용 픽스처입니다.
+
 
 ## [0.4.0] - 2026-09-12
 

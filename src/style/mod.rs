@@ -44,21 +44,31 @@ use std::io::IsTerminal;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicU8, Ordering};
 
+mod badge;
+mod box_style;
 mod color;
+mod keyval;
+mod list;
 pub mod pager;
 mod panel;
 mod progress;
 mod rule;
+mod spinner;
 #[allow(clippy::module_inception)]
 mod style;
 mod table;
 mod text;
 mod tree;
 
+pub use badge::Badge;
+pub use box_style::BoxStyle;
 pub use color::Color;
+pub use keyval::KeyVal;
+pub use list::{List, ListMarker};
 pub use panel::Panel;
 pub use progress::Progress;
 pub use rule::Rule;
+pub use spinner::Spinner;
 pub use style::Style;
 pub use table::{Align, Table};
 pub use text::Text;
@@ -194,9 +204,45 @@ pub fn stdout_is_terminal() -> bool {
     std::io::stdout().is_terminal()
 }
 
-/// Terminal display width that counts CJK characters (Hangul/Han/Kana, etc.) as 2 columns and the rest as 1.
+/// Terminal display width that counts CJK characters (Hangul/Han/Kana, etc.) as 2 columns and the rest as 1,
+/// ignoring ANSI escape sequences.
 pub fn display_width(s: &str) -> usize {
-    s.chars().map(|c| if is_cjk(c) { 2 } else { 1 }).sum()
+    let mut width = 0;
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b'
+            && let Some(&next_c) = chars.peek()
+        {
+            if next_c == '[' {
+                chars.next();
+                while let Some(&seq_c) = chars.peek() {
+                    chars.next();
+                    if (seq_c as u32) >= 0x40 && (seq_c as u32) <= 0x7E {
+                        break;
+                    }
+                }
+                continue;
+            } else if next_c == ']' || next_c == '_' || next_c == 'P' || next_c == '^' {
+                chars.next();
+                while let Some(seq_c) = chars.next() {
+                    if seq_c == '\x07' {
+                        break;
+                    }
+                    if seq_c == '\x1b' && chars.peek() == Some(&'\\') {
+                        chars.next();
+                        break;
+                    }
+                }
+                continue;
+            } else {
+                chars.next();
+                continue;
+            }
+        }
+
+        width += if is_cjk(c) { 2 } else { 1 };
+    }
+    width
 }
 
 fn is_cjk(c: char) -> bool {
@@ -237,7 +283,8 @@ fn is_cjk(c: char) -> bool {
         // Fullwidth Forms
         0xFF01..=0xFF60 |
         0xFFE0..=0xFFE6 |
-        // CJK Extension B ~ H
+        0x2600..=0x27BF |
+        0x1F300..=0x1FAFF |
         0x1B000..=0x1B12F |
         0x20000..=0x2FA1F |
         0x30000..=0x3134F
@@ -350,5 +397,14 @@ mod tests {
         e2.force_color = Some("1".to_owned());
         e2.choice = ColorChoice::Never;
         assert!(!should_use_color(&e2));
+    }
+
+    #[test]
+    fn display_width_ignores_ansi_escapes() {
+        assert_eq!(display_width("\x1b[31mhello\x1b[0m"), 5);
+        assert_eq!(display_width("\x1b[1;32m한글\x1b[0m"), 4);
+        assert_eq!(display_width("\x1b[38;2;255;0;0mRGB\x1b[0m test"), 8);
+        assert_eq!(display_width("plain text"), 10);
+        assert_eq!(display_width("\x1b[32m🚀\x1b[0m 한글 wrcli"), 13);
     }
 }

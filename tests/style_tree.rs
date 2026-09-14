@@ -45,3 +45,27 @@ fn default_style_applied_when_styled() {
     assert!(out.contains("\x1b["));
     assert!(out.contains("kid"));
 }
+
+#[test]
+fn guide_style_applied() {
+    let tree = Tree::new("root")
+        .style(Style::new().fg(Color::Green))
+        .guide_style(Style::new().fg(Color::Yellow))
+        .child(Tree::new("kid"));
+    let out = tree.render(true);
+    let yellow_branch = Style::new().fg(Color::Yellow).apply("└── ", true);
+    assert!(out.contains(&yellow_branch));
+}
+
+#[test]
+fn multiline_label_indented() {
+    let tree = Tree::new("root")
+        .child(Tree::new("line1\nline2"))
+        .child(Tree::new("kid2"));
+    let out = tree.render(false);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines[0], "root");
+    assert_eq!(lines[1], "├── line1");
+    assert_eq!(lines[2], "│   line2");
+    assert_eq!(lines[3], "└── kid2");
+}

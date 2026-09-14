@@ -11,12 +11,15 @@ rules, trees, progress bars, and more.
 - [Getting Started](#getting-started)
 - [Color](#color)
 - [Style](#style)
-- [Text](#text)
-- [Table](#table)
+- [Text and Markup](#text-and-markup)
+- [Table and BoxStyle](#table-and-boxstyle)
 - [Panel](#panel)
 - [Rule](#rule)
 - [Tree](#tree)
-- [Progress](#progress)
+- [KeyVal](#keyval)
+- [Badge](#badge)
+- [List](#list)
+- [Spinner and Progress](#spinner-and-progress)
 - [PAGER and Color Policy](#pager-and-color-policy)
 - [Convenience Output Helpers](#convenience-output-helpers)
 
@@ -25,8 +28,12 @@ rules, trees, progress bars, and more.
 ## Getting Started
 
 ```rust
-use wrcli::style::{Color, Style, Table, Panel, Rule, Tree, Text, Progress, Align};
+use wrcli::style::{
+    Align, Badge, BoxStyle, Color, KeyVal, List, ListMarker, Panel, Progress, Rule, Spinner,
+    Style, Table, Text, Tree,
+};
 ```
+
 
 Styling is **automatically disabled** in the following cases:
 
@@ -118,9 +125,9 @@ If `styled = false` or the style is empty, the original text is returned unchang
 
 ---
 
-## Text
+## Text and Markup
 
-Concatenates spans of different styles and renders them as a single text.
+Concatenates spans of different styles and renders them as a single text. It also supports rich-style inline markup.
 
 ```rust
 use wrcli::style::{Text, Style, Color};
@@ -130,6 +137,10 @@ let text = Text::new()
     .span("boom", Style::new().fg(Color::Red).bold());
 
 println!("{}", text.render(false)); // "Error: boom"
+
+// Inline markup
+let markup_text = Text::from_markup("[bold green]Success:[/] file [cyan]test.rs[/] created");
+markup_text.print();
 ```
 
 | Method | Description |
@@ -137,32 +148,34 @@ println!("{}", text.render(false)); // "Error: boom"
 | `.plain("...")` | Add an unstyled span |
 | `.span("...", style)` | Add a span with the given style |
 | `.plain_styled("...", style)` | Alias for `span` |
+| `Text::from_markup("...")` | Parses inline tags like `[bold green]...[/]` or `[on_red white]...[/]` |
 
 ---
 
-## Table
+## Table and BoxStyle
 
-A table that draws its border with Unicode box characters.
+A table that draws its border with configurable box-drawing characters (`BoxStyle`).
 
 ```rust
-use wrcli::style::{Table, Align};
+use wrcli::style::{Table, Align, BoxStyle};
 
 let out = Table::new()
+    .box_style(BoxStyle::Rounded)
     .headers(["Name", "Version", "Description"])
-    .row(["wrcli", "0.1.0", "CLI framework"])
+    .row(["wrcli", "0.4.0", "CLI framework"])
     .row(["serde", "1.0",  "serialization"])
     .align(vec![Align::Left, Align::Center, Align::Right])
+    .row_separator(false)
     .render(false);
 ```
 
 ```text
-┌───────┬─────────┬───────────────┐
+╭───────┬─────────┬───────────────╮
 │ Name  │ Version │   Description │
 ├───────┼─────────┼───────────────┤
-│ wrcli │  0.1.0  │ CLI framework │
-├───────┼─────────┼───────────────┤
+│ wrcli │  0.4.0  │ CLI framework │
 │ serde │   1.0   │ serialization │
-└───────┴─────────┴───────────────┘
+╰───────┴─────────┴───────────────╯
 ```
 
 | Method | Description |
@@ -170,23 +183,28 @@ let out = Table::new()
 | `.headers([...])` | Header row |
 | `.row([...])` | Data row (call multiple times) |
 | `.align(Vec<Align>)` | Per-column alignment (`Left`/`Center`/`Right`) |
-| `.border(bool)` | Whether to draw the border (default `true`) |
-| `.header_style(Style)` | Header style |
+| `.border(bool)` | Whether to draw borders (default `true`) |
+| `.box_style(BoxStyle)` | Border character style (`Square`, `Rounded`, `Double`, `Heavy`, `Ascii`, `Markdown`) |
+| `.row_separator(bool)` | Whether to draw separators between data rows (default `true`) |
+| `.border_style(Style)` | Style for border lines |
+| `.header_style(Style)` | Header row text style |
 
-CJK characters (such as Hangul) are counted as 2 columns based on `display_width`,
-so alignment is preserved.
+CJK characters and ANSI escape sequences are properly measured with `display_width` so alignment remains exact.
 
 ---
 
 ## Panel
 
-A box with a border and an optional title.
+A box with a border, an optional title, and an optional subtitle (footer).
 
 ```rust
-use wrcli::style::{Panel, Style, Color};
+use wrcli::style::{Panel, Style, Color, BoxStyle, Align};
 
 let out = Panel::new("Deploy complete.\nAll services healthy.")
     .title("Status")
+    .subtitle("region: us-east-1")
+    .box_style(BoxStyle::Rounded)
+    .content_align(Align::Left)
     .border_style(Style::new().fg(Color::Green))
     .padding(1)
     .width(40)          // fixed width (fits the content when unset)
@@ -197,14 +215,19 @@ let out = Panel::new("Deploy complete.\nAll services healthy.")
 ╭── Status ────────────────────────────────╮
 │ Deploy complete.                         │
 │ All services healthy.                    │
-╰──────────────────────────────────────────╯
+╰───────────────────── region: us-east-1 ──╯
 ```
 
 | Method | Description |
 | ------ | ---- |
-| `.title("...")` | Title (optional) |
-| `.border_style(Style)` | Border style |
+| `.title("...")` | Top title (optional) |
+| `.subtitle("...")` | Bottom footer / subtitle (optional) |
 | `.title_style(Style)` | Title style |
+| `.subtitle_style(Style)` | Subtitle style |
+| `.subtitle_align(Align)` | Subtitle alignment (`Left`/`Center`/`Right`, default `Right`) |
+| `.box_style(BoxStyle)` | Border style (`Square`, `Rounded`, `Double`, etc.) |
+| `.content_align(Align)` | Content alignment (`Left`/`Center`/`Right`) |
+| `.border_style(Style)` | Border line style |
 | `.padding(usize)` | Left/right padding |
 | `.width(usize)` | Fixed inner width |
 
@@ -212,13 +235,14 @@ let out = Panel::new("Deploy complete.\nAll services healthy.")
 
 ## Rule
 
-A horizontal rule with an optional centered title.
+A horizontal rule with an optional title and configurable alignment.
 
 ```rust
-use wrcli::style::{Rule, Style, Color};
+use wrcli::style::{Rule, Style, Color, Align};
 
 let out = Rule::new()
     .title("Configuration")
+    .align(Align::Left)
     .style(Style::new().fg(Color::Yellow))
     .width(60)
     .line_char('─')    // default
@@ -227,7 +251,8 @@ let out = Rule::new()
 
 | Method | Description |
 | ------ | ---- |
-| `.title("...")` | Centered title (optional) |
+| `.title("...")` | Title text (optional) |
+| `.align(Align)` | Title alignment (`Left`/`Center`/`Right`, default `Center`) |
 | `.style(Style)` | Line style |
 | `.title_style(Style)` | Title style |
 | `.width(usize)` | Line width (default 80) |
@@ -237,12 +262,13 @@ let out = Rule::new()
 
 ## Tree
 
-Renders a hierarchical tree with Unicode box characters.
+Renders a hierarchical tree with Unicode box characters, customizable guide styles, and multi-line support.
 
 ```rust
-use wrcli::style::Tree;
+use wrcli::style::{Tree, Style, Color};
 
 let tree = Tree::new("root")
+    .guide_style(Style::new().fg(Color::BrightBlack))
     .child(Tree::new("child1"))
     .child(
         Tree::new("child2")
@@ -266,15 +292,117 @@ root
 | `Tree::new("...")` | Create a node |
 | `.child(Tree)` | Add a child node (call multiple times) |
 | `.style(Style)` | Style of this node's label (default: cyan) |
+| `.guide_style(Style)` | Style for guide lines and branches |
 
 ---
 
-## Progress
+## KeyVal
 
-A terminal progress bar.
+Aligns key-value pairs cleanly according to the widest key.
 
 ```rust
-use wrcli::style::{Progress, Style, Color};
+use wrcli::style::KeyVal;
+
+let out = KeyVal::new()
+    .entry("Host", "127.0.0.1")
+    .entry("Port", "8080")
+    .separator(" : ")
+    .render(false);
+```
+
+```text
+Host : 127.0.0.1
+Port : 8080
+```
+
+| Method | Description |
+| ------ | ---- |
+| `KeyVal::new()` | Create a new KeyVal viewer |
+| `.entry(key, val)` | Add a key-value entry |
+| `.separator(" : ")` | Separator between key and value |
+| `.key_style(Style)` | Style for keys |
+| `.val_style(Style)` | Style for values |
+| `.sep_style(Style)` | Style for the separator |
+
+---
+
+## Badge
+
+Compact status badges and tags with presets for common states.
+
+```rust
+use wrcli::style::Badge;
+
+let b1 = Badge::success("PASS");
+let b2 = Badge::error("FAIL");
+let b3 = Badge::warn("WARN");
+let b4 = Badge::info("INFO");
+let pill = Badge::new("ACTIVE").no_brackets();
+```
+
+| Method | Description |
+| ------ | ---- |
+| `Badge::new("...")` | Custom badge |
+| `Badge::success("...")` | Green success badge (`[PASS]`) |
+| `Badge::error("...")` | Red error badge (`[FAIL]`) |
+| `Badge::warn("...")` | Yellow warning badge (`[WARN]`) |
+| `Badge::info("...")` | Cyan info badge (`[INFO]`) |
+| `.brackets('(', ')')` | Custom brackets (default `[`, `]`) |
+| `.no_brackets()` | Space-padded pill badge without brackets |
+| `.style(Style)` | Text style |
+| `.bracket_style(Style)` | Bracket style |
+
+---
+
+## List
+
+Bulleted and numbered lists with support for nesting.
+
+```rust
+use wrcli::style::{List, ListMarker};
+
+let list = List::new()
+    .marker(ListMarker::Bullet)
+    .item("Compile assets")
+    .item("Link binaries")
+    .sublist(
+        List::new()
+            .marker(ListMarker::Arrow)
+            .item("target/release/app"),
+    );
+
+list.print();
+```
+
+```text
+• Compile assets
+• Link binaries
+  → target/release/app
+```
+
+| Method | Description |
+| ------ | ---- |
+| `List::new()` | Create a new list |
+| `.item("...")` | Add an item |
+| `.sublist(List)` | Add a nested sublist |
+| `.marker(ListMarker)` | `Bullet` (`•`), `Dash` (`-`), `Arrow` (`→`), `Numbered` (`1.`) |
+| `.marker_style(Style)` | Style for bullet/number markers |
+| `.item_style(Style)` | Style for item text |
+
+---
+
+## Spinner and Progress
+
+`Spinner` provides a non-blocking indicator for indeterminate tasks, while `Progress` tracks determinate completion percentages. Both strictly adhere to clig.dev rules (animated only on interactive TTYs, static on non-TTY pipes/CI).
+
+```rust
+use wrcli::style::Spinner;
+
+let mut sp = Spinner::new("Downloading assets...");
+sp.tick(); // advances frame and draws via `\r` on TTY
+sp.finish_with_message("Done!");
+```
+
 
 let bar = Progress::new(100)
     .progress(42)

@@ -124,13 +124,15 @@ fn main() {
         .print();
 
     Table::new()
+        .box_style(wrcli::style::BoxStyle::Rounded)
         .header_style(Style::new().bold().fg(Color::BrightCyan))
         .headers(["Crate", "Version", "Description"])
-        .row(["wrcli", "0.1.0", "Cobra/Viper-inspired CLI framework"])
+        .row(["wrcli", "0.4.0", "Cobra/Viper-inspired CLI framework"])
         .row(["serde", "1.0", "De/serialization framework"])
         .row(["tokio", "1.38", "Async runtime"])
         .row(["clap", "4.5", "Command Line Argument Parser"])
         .align(vec![Align::Left, Align::Center, Align::Left])
+        .row_separator(false)
         .print();
 
     println!();
@@ -144,6 +146,7 @@ fn main() {
 
     Panel::new("Deploy complete.\nAll services are healthy.\nRollback window: 30 minutes.")
         .title("Deployment")
+        .subtitle("region: ap-northeast-2")
         .border_style(Style::new().fg(Color::Green))
         .title_style(Style::new().bold().fg(Color::BrightGreen))
         .print();
@@ -160,13 +163,57 @@ fn main() {
 
     println!();
 
-    Panel::new("This panel has no title and uses the default cyan border style.\nIt wraps multiple lines of text neatly inside a Unicode box.")
+    // ── Badges & Markup ────────────────────────────────────────────────────────
+    Rule::new()
+        .title("Badges & Markup")
+        .style(Style::new().fg(Color::BrightBlack))
+        .width(60)
+        .print();
+
+    println!(
+        "  {} {} {} {}",
+        wrcli::style::Badge::success("PASS").render(tty),
+        wrcli::style::Badge::error("FAIL").render(tty),
+        wrcli::style::Badge::warn("WARN").render(tty),
+        wrcli::style::Badge::info("v0.4.0").render(tty),
+    );
+
+    println!();
+    wrcli::style::Text::from_markup("  [bold green]Markup:[/] Easily format text with [cyan]tags[/] and [on_blue white]backgrounds[/].").print();
+    println!();
+
+    // ── Key-Value & List ───────────────────────────────────────────────────────
+    Rule::new()
+        .title("Key-Value & Lists")
+        .style(Style::new().fg(Color::BrightBlack))
+        .width(60)
+        .print();
+
+    wrcli::style::KeyVal::new()
+        .entry("Database", "PostgreSQL 16")
+        .entry("Port", "5432")
+        .entry("Max Connections", "100")
+        .print();
+
+    println!();
+
+    wrcli::style::List::new()
+        .marker(wrcli::style::ListMarker::Bullet)
+        .item("First build step: compile dependencies")
+        .item("Second build step: link binaries")
+        .sublist(
+            wrcli::style::List::new()
+                .marker(wrcli::style::ListMarker::Arrow)
+                .item("artifacts saved to target/release"),
+        )
         .print();
 
     println!();
 
     // ── Closing rule ───────────────────────────────────────────────────────────
     Rule::new()
+        .title("Done")
+        .align(Align::Right)
         .style(Style::new().fg(Color::Cyan))
         .width(60)
         .print();
