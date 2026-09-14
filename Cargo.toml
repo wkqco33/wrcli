@@ -1,6 +1,6 @@
 [package]
 name = "wrcli"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 description = "A Rust CLI framework inspired by Cobra and Viper, with typed flags, nested commands, layered configuration, shell completion, and terminal styling"
 license = "MIT"

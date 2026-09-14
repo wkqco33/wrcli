@@ -48,13 +48,13 @@
 
 ```toml
 [dependencies]
-wrcli = "0.4"
+wrcli = "0.5"
 
 # YAML도 필요한 경우
-wrcli = { version = "0.4", features = ["yaml-config"] }
+wrcli = { version = "0.5", features = ["yaml-config"] }
 
 # 설정 파일 지원 없이 최소 빌드
-wrcli = { version = "0.4", default-features = false }
+wrcli = { version = "0.5", default-features = false }
 ```
 
 ### Git 저장소 직접 참조
@@ -64,7 +64,7 @@ wrcli = { version = "0.4", default-features = false }
 wrcli = { git = "git@github.com:wkqco33/wrcli.git" }
 
 # 브랜치 / 태그 / 커밋 고정
-wrcli = { git = "git@github.com:wkqco33/wrcli.git", tag = "v0.4.0" }
+wrcli = { git = "git@github.com:wkqco33/wrcli.git", tag = "v0.5.0" }
 wrcli = { git = "git@github.com:wkqco33/wrcli.git", rev = "a1b2c3d" }
 
 # 로컬 경로 (모노레포 / 개발 중)
@@ -380,9 +380,9 @@ Command::new("myapp")
 use wrcli::style::Table;
 let tsv = Table::new()
     .headers(["Name", "Version"])
-    .row(["wrcli", "0.4.0"])
+    .row(["wrcli", "0.5.0"])
     .render_plain();
-assert_eq!(tsv, "Name\tVersion\nwrcli\t0.4.0\n");
+assert_eq!(tsv, "Name\tVersion\nwrcli\t0.5.0\n");
 ```
 
 ---
@@ -502,7 +502,7 @@ wrcli::style::pager::page(&long_text)?;
 핸들러는 async-signal-safe 연산만 수행하며 정리(clean-up) 작업을 하지 않는다 (crash-only).
 
 ```toml
-wrcli = { version = "0.4", features = ["signal"] }
+wrcli = { version = "0.5", features = ["signal"] }
 ```
 
 ```rust
@@ -1183,10 +1183,10 @@ fn unknown_flag_fails() {
 
 ```toml
 # 모든 형식 활성화
-wrcli = { version = "0.4", features = ["yaml-config", "ini-config", "dotenv-config", "properties-config"] }
+wrcli = { version = "0.5", features = ["yaml-config", "ini-config", "dotenv-config", "properties-config"] }
 
 # 최소 빌드 (설정 파일 지원 없음)
-wrcli = { version = "0.4", default-features = false }
+wrcli = { version = "0.5", default-features = false }
 ```
 
 스타일(`Style`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress` 등)은

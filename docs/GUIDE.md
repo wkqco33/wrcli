@@ -48,13 +48,13 @@
 
 ```toml
 [dependencies]
-wrcli = "0.4"
+wrcli = "0.5"
 
 # If you also need YAML
-wrcli = { version = "0.4", features = ["yaml-config"] }
+wrcli = { version = "0.5", features = ["yaml-config"] }
 
 # Minimal build without config file support
-wrcli = { version = "0.4", default-features = false }
+wrcli = { version = "0.5", default-features = false }
 ```
 
 ### Referencing the Git Repository Directly
@@ -64,7 +64,7 @@ wrcli = { version = "0.4", default-features = false }
 wrcli = { git = "git@github.com:wkqco33/wrcli.git" }
 
 # Pin a branch / tag / commit
-wrcli = { git = "git@github.com:wkqco33/wrcli.git", tag = "v0.4.0" }
+wrcli = { git = "git@github.com:wkqco33/wrcli.git", tag = "v0.5.0" }
 wrcli = { git = "git@github.com:wkqco33/wrcli.git", rev = "a1b2c3d" }
 
 # Local path (monorepo / during development)
@@ -367,9 +367,9 @@ A table can be rendered with `Table::render_plain()` as tab-separated, one line 
 use wrcli::style::Table;
 let tsv = Table::new()
     .headers(["Name", "Version"])
-    .row(["wrcli", "0.4.0"])
+    .row(["wrcli", "0.5.0"])
     .render_plain();
-assert_eq!(tsv, "Name\tVersion\nwrcli\t0.4.0\n");
+assert_eq!(tsv, "Name\tVersion\nwrcli\t0.5.0\n");
 ```
 
 ---
@@ -482,7 +482,7 @@ wrcli::style::pager::page(&long_text)?;
 With the `signal` feature enabled, on Ctrl-C you can print a message immediately and exit with code `130`. The handler performs only async-signal-safe operations and does no clean-up work (crash-only).
 
 ```toml
-wrcli = { version = "0.4", features = ["signal"] }
+wrcli = { version = "0.5", features = ["signal"] }
 ```
 
 ```rust
@@ -1135,10 +1135,10 @@ fn unknown_flag_fails() {
 
 ```toml
 # enable all formats
-wrcli = { version = "0.4", features = ["yaml-config", "ini-config", "dotenv-config", "properties-config"] }
+wrcli = { version = "0.5", features = ["yaml-config", "ini-config", "dotenv-config", "properties-config"] }
 
 # minimal build (no config file support)
-wrcli = { version = "0.4", default-features = false }
+wrcli = { version = "0.5", default-features = false }
 ```
 
 Styling (`Style`, `Table`, `Panel`, `Rule`, `Tree`, `Text`, `Progress`, and so on) is provided by default and needs no separate feature. For usage, see [STYLE.md](/docs/STYLE.md).
